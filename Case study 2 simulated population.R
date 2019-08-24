@@ -276,7 +276,6 @@ bologna@data$LABEL <- as.factor(bologna@data$LABEL)
 spplot(bologna,"LABEL")
 
 ####################################################################
-setwd("C://Users//UTENTE//Google Drive//Spatial Sampling//Advisory Board//paper//Case study 2")
 sink("report_simulated_population.txt")
 cat("\n ------------------------------\n")
 cat("\n Report on simulated population\n")
