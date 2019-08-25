@@ -35,19 +35,6 @@ dev.off()
 coordinates(meuse)<-c("x","y")
 coordinates(meuse.grid)<-c("x","y")
 
-# meuse %>% as.data.frame %>%
-#   ggplot(aes(x, y)) + geom_point(aes(size=cadmium), color="blue", alpha=3/4) +
-#   ggtitle("Cadmium concentration") + coord_equal() + theme_bw()
-# meuse %>% as.data.frame %>%
-#   ggplot(aes(x, y)) + geom_point(aes(size=copper), color="blue", alpha=3/4) +
-#   ggtitle("Copper concentration") + coord_equal() + theme_bw()
-# meuse %>% as.data.frame %>%
-#   ggplot(aes(x, y)) + geom_point(aes(size=lead), color="blue", alpha=3/4) +
-#   ggtitle("Lead concentration") + coord_equal() + theme_bw()
-# meuse %>% as.data.frame %>%
-#   ggplot(aes(x, y)) + geom_point(aes(size=zinc), color="blue", alpha=3/4) +
-#   ggtitle("Zinc concentration") + coord_equal() + theme_bw()
-
 png("./images/lead.png")
 spplot(meuse,"lead",do.log=F,ylab="Lead localisation and concentration")
 dev.off()
@@ -86,68 +73,14 @@ summary(preds$Pb.pred)
 preds$Pb.pred <- ifelse(preds$Pb.pred < 0,0,preds$Pb.pred)
 summary(preds$Pb.pred)
 df <- NULL
-# df$Cd.pred <- preds@data$Cd.pred
-# df$Cd.var <- preds@data$Cd.var
-# df$Cu.pred <- preds@data$Cu.pred
-# df$Cu.var <- preds@data$Cu.var
+
 df$Pb.pred <- preds@data$Pb.pred
 df$Pb.var <- preds@data$Pb.var
-# df$Zn.pred <- preds@data$Zn.pred
-# df$Zn.var <- preds@data$Zn.var
-# df$dom <- meuse.grid@data$soil
+
 df$dom1 <- 1
 df <- as.data.frame(df)
 df$id <- meuse.grid$id
 
-
-
-
-
-#---------------------------------------------------
-# kmean spatial solution 
-#---------------------------------------------------
-# frame <- buildFrameDF(df=df,
-#                       id="id",
-#                       X=c("Pb.pred"),
-#                       Y=c("Pb.pred"),
-#                       domainvalue = "dom1")
-# cv <- NULL
-# cv$DOM <- rep("DOM1",1)
-# cv$CV1 <- rep(0.05,1)
-# cv$domainvalue <- 1
-# cv <- as.data.frame(cv)
-# cv
-# 
-# 
-# frame$var1 <- df$Pb.var
-# frame$lon <- meuse.grid$x
-# frame$lat <- meuse.grid$y
-# set.seed(1234)
-# kmeans <- KmeansSolutionSpatial(frame,
-#                                 fitting=1,
-#                                 range=fit.vgm$var_model$range[2],
-#                                 gamma=1,
-#                                 errors=cv,
-#                       maxclusters = 3)
-# strataKm <- aggrStrataSpatial(dataset=frame,
-#                               fitting=1,
-#                               range=fit.vgm$var_model$range[2],
-#                               gamma=1,
-#                   vett=kmeans$suggestions,
-#                   dominio=1)
-# strataKm
-# strataKm$SOLUZ <- bethel(strataKm,cv)
-# sum(strataKm$SOLUZ)
-# strataKm$STRATO <- strataKm$stratum
-# framenew <- frame
-# framenew$LABEL <- kmeans$suggestions
-# ssKm <- summaryStrata(framenew,strataKm)
-# ssKm
-# sugg <- prepareSuggestionSpatial(ssKm)
-# sugg
-# frameKm <- SpatialPointsDataFrame(data=framenew, coords=cbind(framenew$lon,framenew$lat) )
-# frameKm$LABEL <- as.factor(frameKm$LABEL)
-# spplot(frameKm,"LABEL")
 
 #-----------------------------------------------------------
 # Solution with spatial optimization on continuous variables
@@ -213,11 +146,10 @@ spplot(frameres,"LABEL")
 #-----------------------------------------------------------
 
 #------------------ Ospats processing
-setwd("C:\\Users\\UTENTE\\Google Drive\\Spatial Sampling\\meuse\\ospats")
+setwd("./ospats")
 # devtools::install_github("Non-Contradiction/JuliaCall")
 library(JuliaCall)
 julia <- julia_setup()
-# julia <- julia_setup(JULIA_HOME = "C:\\Users\\Giulio\\AppData\\Local\\Julia-0.6.4\\bin")
 #-------------------------------------
 add_variance <- 0
 file <- NULL
@@ -226,16 +158,13 @@ file$y <- frame$lat
 file$id <- c(1:nrow(frame))
 file$z <- frame$Y1
 file$var <- frame$var1+add_variance
-# file$stratum <- frame$LABEL
 file <- as.data.frame(file)
-# file <- file[order(paste(file$x,file$y,sep="")),]
 write.table(file,"example.txt",row.names=F,col.names=F,sep=",",quote=F)
 #--------------------------------------------------------
 julia_console()
 include("main.jl")
 exit
 #--------------------------------------------------------
-# fr <- read.table("stratification",sep="\t",header=FALSE)
 fr <- read.table("stratification",sep=",",header=TRUE,dec=".",stringsAsFactors = FALSE)
 colnames(fr) <- c("lon","lat","stratum")
 table(fr$stratum)
@@ -264,5 +193,4 @@ spfr@data$stratum <- as.factor(spfr@data$stratum)
 spplot(spfr,"stratum")
 
 
-save.image(file="lead_4strata.RData")
 
