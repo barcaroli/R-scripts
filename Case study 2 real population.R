@@ -95,15 +95,26 @@ cv
 # SOLUTION 1
 # Linear model
 
-lm_1 <- lm(ST1 ~ P1,data=frame[camp,])
+lm_1 <- lm(ST1 ~ P1,data=spoints_samp)
 summary(lm_1)
+
+# Coefficients:
+#   Estimate Std. Error t value            Pr(>|t|)    
+# (Intercept)  0.40386    1.08621   0.372                0.71    
+# P1           0.11371    0.00467  24.349 <0.0000000000000002 ***
+#   ---
+# Residual standard error: 16.28 on 465 degrees of freedom
+# Multiple R-squared:  0.5604,	Adjusted R-squared:  0.5595 
+ 
+
 plot(lm_1)
+
 
 model <- NULL
 model$type[1] <- "linear"
 model$beta[1] <- summary(lm_1)$coefficients[2]
 model$sig2[1] <- summary(lm_1)$sigma
-model$gamma[1] <- 0
+model$gamma[1] <- 0.28
 model <- as.data.frame(model)
 model
 
@@ -174,12 +185,13 @@ set.seed(1234)
 solution2 <- optimizeStrataSpatial (
   errors=cv, 
   framesamp=frame,
-  iter = 50,
+  iter = 20,
   pops = 10,
   nStrata = 5,
-  fitting = summary(lm_1)$r.squared, # 0.8212337 
+  fitting = 0.22,
+  # fitting = summary(lm_1)$r.squared, # 0.5604369 
   range = fit.vgm$var_model$range[2],
-  gamma = 1,
+  gamma = 3,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
@@ -260,7 +272,7 @@ cat("\n ---------------------------------------------\n")
 cat("\n Report on real population (foreign residents)\n")
 cat("\n ---------------------------------------------\n")
 cat("\n *** Linear model ***")
-cat("\nSample size",sum(solution1$aggr_strata$SOLUZ))
+cat("\nSample size",sum(round(solution1$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s1
 cat("\n  CV(P1)  CV(target)\n")
@@ -268,7 +280,7 @@ val1$coeff_var
 cat("\n")
 cat("\n")
 cat("\n *** Kriging ***")
-cat("\nSample size",sum(solution2$aggr_strata$SOLUZ))
+cat("\nSample size",sum(round(solution2$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s2
 cat("\n  CV(P1)  CV(target)\n")
@@ -276,7 +288,7 @@ val2$coeff_var
 cat("\n")
 cat("\n")
 cat("\n *** Spatial model ***")
-cat("\nSample size",sum(solution3$aggr_strata$SOLUZ))
+cat("\nSample size",sum(round(solution3$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s3
 cat("\n  CV(P1)  CV(target)\n")

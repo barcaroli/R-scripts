@@ -1,5 +1,6 @@
 #--------------------------------------------------------------------
 # "Optimization of Spatial Sampling with the R packageSamplingStrata"
+# Case study 2
 # R script for simulated population
 #--------------------------------------------------------------------
 library(SamplingStrata)
@@ -112,12 +113,27 @@ frame$target <- Comune_BO_geo$target
 frame$P1 <- Comune_BO_geo$P1 
 frame$W1 <- Comune_BO_geo$P1W
 
+cv <- NULL
+cv$DOM <- "DOM1"
+cv$CV1 <- 0.03
+cv$domainvalue <- 1
+cv <- as.data.frame(cv)
+cv
+
 ################################################################################################
 # SOLUTION 1
 # Linear model
-
-lm_1 <- lm(target~P1,data=frame[camp,])
+lm_1 <- lm(target~P1,data=spoints_samp)
 summary(lm_1)
+# Coefficients:
+#   Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) 126.78536    6.65885   19.04   <2e-16 ***
+#   P1            1.32323    0.02863   46.22   <2e-16 ***
+#   ---
+# Residual standard error: 99.83 on 465 degrees of freedom
+# Multiple R-squared:  0.8212,	Adjusted R-squared:  0.8208 
+# F-statistic:  2136 on 1 and 465 DF,  p-value: < 2.2e-16
+
 plot(lm_1)
 
 model <- NULL
@@ -127,7 +143,8 @@ model$sig2[1] <- summary(lm_1)$sigma
 model$gamma[1] <- 0
 model <- as.data.frame(model)
 model
-
+# type     beta     sig2         gamma
+# linear   1.323232 99.83204     0
 set.seed(1234)
 solution1 <- optimizeStrata2 (
   errors=cv, 
@@ -150,7 +167,7 @@ framenew$Y2 <- framenew$TARGET
 
 expected_CV(outstrata)
 unlink("./simulation",recursive=TRUE)
-val1 <- evalSolution(framenew,outstrata,nsampl = 1000,progress=F)
+val1 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
 val1$rel_bias
 val1$coeff_var 
 
@@ -200,12 +217,12 @@ solution2 <- optimizeStrataSpatial (
   nStrata = 5,
   fitting = summary(lm_1)$r.squared, # 0.8212337 
   range = fit.vgm$var_model$range[2],
-  gamma = 1,
+  gamma = 3,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
 )
-sum(solution2$aggr_strata$SOLUZ)
+sum(round(solution2$aggr_strata$SOLUZ))
 framenew <- solution2$framenew
 outstrata <- solution2$aggr_strata
 outstrata
@@ -231,6 +248,17 @@ spplot(bologna,"LABEL")
 
 lm_2 <- lm(target ~ P1 + W1, data=frame[camp,])
 summary(lm_2)
+# Coefficients:
+#   Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) -5.24287    4.28806  -1.223    0.222    
+# P1           0.99936    0.01490  67.067   <2e-16 ***
+#   W1         1.03155    0.02402  42.940   <2e-16 ***
+#   ---
+# Residual standard error: 44.81 on 464 degrees of freedom
+# Multiple R-squared:  0.9641,	Adjusted R-squared:  0.9639 
+
+
+
 # plot(lm_2)
 
 model <- NULL
@@ -242,7 +270,8 @@ model$range[1] <- fit.vgm$var_model$range[2]
 model$gamma[1] <- NA
 model <- as.data.frame(model)
 model
-
+# type      beta    beta2     sig2    range       gamma
+# spatial 0.9993553 1.031549 4041.294 958.0816    NA
 set.seed(1234)
 solution3 <- optimizeStrata2 (
   errors=cv, 
