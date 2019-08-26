@@ -107,14 +107,24 @@ summary(lm_1)
 # Multiple R-squared:  0.5604,	Adjusted R-squared:  0.5595 
  
 
-plot(lm_1)
+# plot(lm_1)
 
+# calculation of heteroschedasticity index
+d1 <- NULL
+d1$y <- frame$ST1[camp]
+d1$x <- frame$P1[camp]
+d1 <- as.data.frame(d1)
+source("computeGamma.R")
+gamma_est <- computeGamma(x="x",y="y",dataset="d1")
+gamma_est
 
 model <- NULL
 model$type[1] <- "linear"
 model$beta[1] <- summary(lm_1)$coefficients[2]
 model$sig2[1] <- summary(lm_1)$sigma
-model$gamma[1] <- 0.28
+# model$gamma[1] <- 0.51
+# model$gamma[1] <- 0.22
+model$gamma <- gamma_est
 model <- as.data.frame(model)
 model
 
@@ -130,7 +140,7 @@ solution1 <- optimizeStrata2 (
   showPlot = TRUE,
   parallel = FALSE
 )
-sum(solution1$aggr_strata$SOLUZ)
+sum(round(solution1$aggr_strata$SOLUZ))
 framenew <- solution1$framenew
 outstrata <- solution1$aggr_strata
 outstrata
@@ -177,9 +187,16 @@ v.fit <- fit.lmc(v, g,
                      range=fit.vgm$var_model$range[2], 
                      nugget=fit.vgm$var_model$psill[1]))
 preds <- predict(v.fit, Comune_BO_geo)
+names(preds)
 
 # Add estimated model variance to frame
+frame$pred <- preds$v.pred
 frame$var1 <- preds$v.var
+# Compute fitting
+plot(frame$ST1,frame$pred)
+lm_pred <- lm(ST1 ~ pred,data=frame)
+summary(lm_pred)
+summary(lm_pred)$r.squared
 
 set.seed(1234)
 solution2 <- optimizeStrataSpatial (
@@ -188,8 +205,8 @@ solution2 <- optimizeStrataSpatial (
   iter = 20,
   pops = 10,
   nStrata = 5,
-  fitting = 0.22,
-  # fitting = summary(lm_1)$r.squared, # 0.5604369 
+  fitting = 0.09,
+  # fitting = summary(lm_pred)$r.squared, # 0.6240108
   range = fit.vgm$var_model$range[2],
   gamma = 3,
   writeFiles = FALSE,
@@ -258,6 +275,7 @@ unlink("./simulation",recursive=TRUE)
 val3 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
 val1$rel_bias
 val3$coeff_var 
+
 
 # Plot
 colnames(framenew)[1] <- "SEZ"

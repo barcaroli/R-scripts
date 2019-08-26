@@ -206,7 +206,12 @@ v.fit <- fit.lmc(v, g,
 preds <- predict(v.fit, Comune_BO_geo)
 
 # Add estimated model variance to frame
+frame$pred <- preds$v.pred
 frame$var1 <- preds$v.var
+# Compute fitting
+lm_pred <- lm(target ~ pred,data=frame)
+summary(lm_pred)
+summary(lm_pred)$r.squared
 
 set.seed(1234)
 solution2 <- optimizeStrataSpatial (
@@ -215,7 +220,7 @@ solution2 <- optimizeStrataSpatial (
   iter = 50,
   pops = 10,
   nStrata = 5,
-  fitting = summary(lm_1)$r.squared, # 0.8212337 
+  fitting = summary(lm_pred)$r.squared, # 0.8670416
   range = fit.vgm$var_model$range[2],
   gamma = 3,
   writeFiles = FALSE,
