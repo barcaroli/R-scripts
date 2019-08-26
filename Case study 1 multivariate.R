@@ -130,6 +130,19 @@ frame$var3 <- df$Pb.var
 frame$var4 <- df$Zn.var
 
 
+kmeans <- KmeansSolutionSpatial(frame,
+                                fitting=1,
+                                range=800,
+                                gamma=3,
+                                errors=cv,
+                                maxclusters = 5)
+# sugg <- prepareSuggestion(frame,range=800,suggestions = kmeans$suggestions)
+# sugg
+# 
+# frameres1 <- SpatialPointsDataFrame(data=framenew, coords=cbind(framenew$lon,framenew$lat) )
+# frameres1$LABEL <- as.factor(frameres1$LABEL)
+# spplot(frameres1,"LABEL")
+
 #---------------------------------------------------
 # Solution with spatial optimization on continuous variables
 #---------------------------------------------------
@@ -146,7 +159,7 @@ solution <- optimizeStrataSpatial (
   showPlot = TRUE,
   parallel = FALSE
 )
-
+save(solution,file="solution_meuse_nodom.RData")
 sum(solution$aggr_strata$SOLUZ)
 
 
@@ -154,24 +167,24 @@ expected_CV(solution$aggr_strata)
 # cv(Y1) cv(Y2) cv(Y3) cv(Y4)
 # DOM1   0.05  0.028  0.033  0.033
 ss <- summaryStrata(x=solution$framenew,outstrata=solution$aggr_strata)
+sink("./output/ssmulti.txt")
 ss
+sink()
 sum(ss$Allocation)
 framenew <- solution$framenew
 framenew$lon <- meuse.grid@coords[,1]
 framenew$lat <- meuse.grid@coords[,2]
+# framenew$strat <- paste(framenew$DOMAINVALUE,framenew$LABEL,sep="")
 table(framenew$LABEL)
 # selection of sample
 sample <- selectSample(frame=framenew,outstrata=solution$aggr_strata)
 head(sample)
 
-
 frameres2 <- SpatialPointsDataFrame(data=framenew, coords=cbind(framenew$LON,framenew$LAT) )
-frameres2$LABEL <- as.factor(frameres2$LABEL)
-spplot(frameres2,"LABEL")
+frameres3 <- SpatialPixelsDataFrame(points=frameres2[c("LON","LAT")], data=framenew)
+frameres3$LABEL <- as.factor(frameres2$LABEL)
+spplot(frameres3,c("LABEL"), col.regions=bpy.colors(5))
 
-samp <- SpatialPointsDataFrame(data=sample, coords=cbind(sample$LON,sample$LAT) )
-samp$LABEL <- as.factor(samp$LABEL)
-spplot(samp,"LABEL")
 
 expected_CV(solution$aggr_strata)
 val <- evalSolution(solution$framenew,solution$aggr_strata,nsampl=30)

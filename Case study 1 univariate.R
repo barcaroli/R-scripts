@@ -35,6 +35,7 @@ dev.off()
 coordinates(meuse)<-c("x","y")
 coordinates(meuse.grid)<-c("x","y")
 
+
 png("./images/lead.png")
 spplot(meuse,"lead",do.log=F,ylab="Lead localisation and concentration")
 dev.off()
@@ -73,13 +74,19 @@ summary(preds$Pb.pred)
 preds$Pb.pred <- ifelse(preds$Pb.pred < 0,0,preds$Pb.pred)
 summary(preds$Pb.pred)
 df <- NULL
-
+# df$Cd.pred <- preds@data$Cd.pred
+# df$Cd.var <- preds@data$Cd.var
+# df$Cu.pred <- preds@data$Cu.pred
+# df$Cu.var <- preds@data$Cu.var
 df$Pb.pred <- preds@data$Pb.pred
 df$Pb.var <- preds@data$Pb.var
-
+# df$Zn.pred <- preds@data$Zn.pred
+# df$Zn.var <- preds@data$Zn.var
+# df$dom <- meuse.grid@data$soil
 df$dom1 <- 1
 df <- as.data.frame(df)
 df$id <- meuse.grid$id
+
 
 
 #-----------------------------------------------------------
@@ -108,13 +115,15 @@ solution <- optimizeStrataSpatial (
   iter = 50,
   pops = 10,
   nStrata = 3,
+  fitting = 1,
   range = fit.vgm$var_model$range[2],
+  gamma=3,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
 )
 
-sum(ceiling((solution$aggr_strata$SOLUZ)))
+sum(round((solution$aggr_strata$SOLUZ)))
 
 # expected_CV(solution$aggr_strata)
 ss <- summaryStrata(x=solution$framenew,outstrata=solution$aggr_strata)
@@ -131,15 +140,14 @@ plotStrata2d(framenew,outstrata,domain=1,vars=c("X1","X1"))
 s <- selectSample(framenew,outstrata)
 
 expected_CV(outstrata)
-val1 <- evalSolution(framenew,outstrata,nsampl=200,progress=F)
+val1 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
 
 val1$coeff_var 
 
-
-
-frameres <- SpatialPointsDataFrame(data=framenew, coords=cbind(framenew$LON,framenew$LAT) )
-frameres$LABEL <- as.factor(frameres$LABEL)
-spplot(frameres,"LABEL")
+frameres2 <- SpatialPointsDataFrame(data=framenew, coords=cbind(framenew$LON,framenew$LAT) )
+frameres3 <- SpatialPixelsDataFrame(points=frameres2[c("lon","lat")], data=framenew)
+frameres3$LABEL <- as.factor(frameres2$LABEL)
+spplot(frameres3,c("LABEL"), col.regions=bpy.colors(5))
 
 #-----------------------------------------------------------
 # Solution with ospats
@@ -150,6 +158,7 @@ setwd("./ospats")
 # devtools::install_github("Non-Contradiction/JuliaCall")
 library(JuliaCall)
 julia <- julia_setup()
+# julia <- julia_setup(JULIA_HOME = "C:\\Users\\Giulio\\AppData\\Local\\Julia-0.6.4\\bin")
 #-------------------------------------
 add_variance <- 0
 file <- NULL
@@ -158,13 +167,16 @@ file$y <- frame$lat
 file$id <- c(1:nrow(frame))
 file$z <- frame$Y1
 file$var <- frame$var1+add_variance
+# file$stratum <- frame$LABEL
 file <- as.data.frame(file)
+# file <- file[order(paste(file$x,file$y,sep="")),]
 write.table(file,"example.txt",row.names=F,col.names=F,sep=",",quote=F)
 #--------------------------------------------------------
 julia_console()
 include("main.jl")
 exit
 #--------------------------------------------------------
+# fr <- read.table("stratification",sep="\t",header=FALSE)
 fr <- read.table("stratification",sep=",",header=TRUE,dec=".",stringsAsFactors = FALSE)
 colnames(fr) <- c("lon","lat","stratum")
 table(fr$stratum)
@@ -189,8 +201,11 @@ sum(bethel(solution$aggr_strata,cv))
 table(framenew$LABEL)
 table(fr$stratum)
 spfr <- SpatialPointsDataFrame(data=fr, coords=cbind(fr$lon,fr$lat) )
-spfr@data$stratum <- as.factor(spfr@data$stratum)
-spplot(spfr,"stratum")
+spfr2 <- SpatialPixelsDataFrame(points=spfr[c("lon","lat")], data=fr)
+spfr2$Ospats <- as.factor(fr$stratum)
+spplot(spfr2,c("Ospats"), col.regions=bpy.colors(5))
 
 
+
+save.image(file="lead_4strata.RData")
 
