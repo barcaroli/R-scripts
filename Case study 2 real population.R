@@ -205,8 +205,7 @@ solution2 <- optimizeStrataSpatial (
   iter = 20,
   pops = 10,
   nStrata = 5,
-  fitting = 0.09,
-  # fitting = summary(lm_pred)$r.squared, # 0.6240108
+  fitting = summary(lm_pred)$r.squared, # 0.6240108
   range = fit.vgm$var_model$range[2],
   gamma = 3,
   writeFiles = FALSE,
