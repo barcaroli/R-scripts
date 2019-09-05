@@ -54,6 +54,7 @@ fit.vgm$var_model
 # model    psill    range
 # 1   Nug 1524.895   0.0000
 # 2   Exp 8275.431 458.3303
+g <- NULL
 g <- gstat(g,"Pb", lead ~ dist + soil, meuse)
 g
 vm <- variogram(g)
@@ -61,12 +62,8 @@ vm.fit <- fit.lmc(vm, g, vgm(psill=fit.vgm$var_model$psill[2],
                              model="Exp", range=fit.vgm$var_model$range[2], 
                              nugget=fit.vgm$var_model$psill[1]))
 
-# Evaluation of fitting
-# preds <- predict(vm.fit, meuse)
-# meuse$Pb.pred <- preds$Pb.pred
-# lm1 <- lm(lead ~ Pb.pred, meuse)
-# summary(lm1)
-# summary(lm1)$r.squared
+# Evaluation of fitting not possible, then fitting = 1
+
 
 # Prediction on the whole grid
 preds <- predict(vm.fit, meuse.grid)
@@ -112,7 +109,8 @@ solution <- optimizeStrataSpatial (
   nStrata = 3,
   fitting = 1,
   range = fit.vgm$var_model$range[2],
-  gamma=1,
+  kappa = 1,
+  gamma = 0,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
@@ -177,7 +175,8 @@ strata <- aggrStrataSpatial(dataset=frameone,
                             fitting=1,
                             range = fit.vgm$var_model$range[2], 
                             vett = frameone$stratum,
-                            gamma = 1,
+                            kappa = 1,
+                            gamma = 0,
                             dominio = 1)
 strata$allocation <- bethel(strata,cv)
 # sink("./output/ospats_strata.txt")

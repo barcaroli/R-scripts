@@ -4,15 +4,11 @@
 # R script for real population (foreign residents : variable ST1)
 #--------------------------------------------------------------------
 library(SamplingStrata)
-library(rgdal)
-library(spdep)
+library(rgdal) # readOGR
+library(spdep) # poly2nb
 library(gstat)
 library(automap)
-library(rgeos)
-library(geoR)
-library(spatstat)
-library(automap)
-library(spatialreg)
+library(rgeos) # gCentroid
 
 #--------------------------------------------------------------
 # PREPARATION OF DATA
@@ -50,6 +46,9 @@ d<-spDists(x=Comune_BO_geo, y = Comune_BO_geo, longlat = FALSE, segments = FALSE
 # Build spatialized variable
 P1W<-WM%*%Comune_BO_geo@data$P1
 Comune_BO_geo@data$P1W<-P1W[,1]
+
+
+
 
 # Moran test 
 lm_ST1 <-lm(Comune_BO_geo@data$ST1 ~ Comune_BO_geo@data$P1)
@@ -122,9 +121,8 @@ model <- NULL
 model$type[1] <- "linear"
 model$beta[1] <- summary(lm_1)$coefficients[2]
 model$sig2[1] <- summary(lm_1)$sigma
-# model$gamma[1] <- 0.51
-# model$gamma[1] <- 0.22
-model$gamma <- gamma_est
+model$gamma[1] <- 0.5
+# model$gamma <- gamma_est
 model <- as.data.frame(model)
 model
 
@@ -133,7 +131,7 @@ solution1 <- optimizeStrata2 (
   errors=cv, 
   framesamp=frame,
   model=model,
-  iter = 50,
+  iter = 75,
   pops = 10,
   nStrata = 5,
   writeFiles = FALSE,
@@ -202,13 +200,13 @@ set.seed(1234)
 solution2 <- optimizeStrataSpatial (
   errors=cv, 
   framesamp=frame,
-  iter = 20,
+  iter = 75,
   pops = 10,
   nStrata = 5,
-  fitting = 0.09,
-  # fitting = summary(lm_pred)$r.squared, # 0.6240108
+  fitting = summary(lm_pred)$r.squared, # 0.6240108
   range = fit.vgm$var_model$range[2],
-  gamma = 3,
+  kappa = 3,
+  gamma = 1.25,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
@@ -237,17 +235,41 @@ spplot(bologna,"LABEL")
 # SOLUTION 3 
 # Spatial Linear Model
 
-lm_2 <- lm(ST1 ~ P1 + W1, data=frame[camp,])
+lm_2 <- lm(ST1 ~ P1 + P1W, data=spoints_samp)
 summary(lm_2)
+summary(lm_2)$sigma^2
 # plot(lm_2)
+
+# Estimate psill and range on residuals of lm_2
+spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
+spoints_samp@data$res_spatial <- summary(lm_2)$residuals
+
+v2 <- variogram(res_spatial  ~ 1, data=spoints_samp, cutoff=3000, width=3000/30)
+plot(v2)
+fit.vgm2 = autofitVariogram(res_spatial  ~ 1, spoints_samp, model = c("Exp","Sph"))
+plot(v2, fit.vgm2$var_model)
+fit.vgm2$var_model
+# fit.vgm$var_model
+
+v3 <- variogram(fit_spatial  ~ res_spatial, data=spoints_samp, cutoff=3000, width=3000/30)
+plot(v3)
+fit.vgm3 = autofitVariogram(fit_spatial  ~ res_spatial, spoints_samp, model = c("Exp","Sph"))
+plot(v3, fit.vgm3$var_model)
+fit.vgm3$var_model
+
+
 
 model <- NULL
 model$type[1] <- "spatial"
 model$beta[1] <- summary(lm_2)$coefficients[2]
 model$beta2[1] <- summary(lm_2)$coefficients[3]
-model$sig2[1] <- fit.vgm$var_model$psill[2]
-model$range[1] <- fit.vgm$var_model$range[2]
-model$gamma[1] <- NA
+# model$sig2[1] <- summary(lm_2)$sigma^2
+model$sig2[1] <- fit.vgm2$var_model$psill[2]
+model$range[1] <- fit.vgm2$var_model$range[2]
+model$sig2_2[1] <- fit.vgm3$var_model$psill[2]
+model$range_2[1] <- fit.vgm3$var_model$range[2]
+model$gamma[1] <- 0.25
+model$fitting[1] <- summary(lm_2)$r.square
 model <- as.data.frame(model)
 model
 
@@ -256,7 +278,7 @@ solution3 <- optimizeStrata2 (
   errors=cv, 
   framesamp=frame,
   model=model,
-  iter = 50,
+  iter = 75,
   pops = 10,
   nStrata = 5,
   writeFiles = FALSE,
@@ -273,7 +295,7 @@ framenew$Y2 <- framenew$ST1
 expected_CV(outstrata)
 unlink("./simulation",recursive=TRUE)
 val3 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
-val1$rel_bias
+val3$rel_bias
 val3$coeff_var 
 
 
@@ -289,7 +311,7 @@ sink("report_real_population.txt")
 cat("\n ---------------------------------------------\n")
 cat("\n Report on real population (foreign residents)\n")
 cat("\n ---------------------------------------------\n")
-cat("\n *** Linear model ***")
+cat("\n *** Linear model (gamma = 0.5) ***")
 cat("\nSample size",sum(round(solution1$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s1
@@ -297,7 +319,7 @@ cat("\n  CV(P1)  CV(target)\n")
 val1$coeff_var
 cat("\n")
 cat("\n")
-cat("\n *** Kriging ***")
+cat("\n *** Kriging (gamma = 1.25) ***")
 cat("\nSample size",sum(round(solution2$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s2
@@ -305,7 +327,7 @@ cat("\n  CV(P1)  CV(target)\n")
 val2$coeff_var
 cat("\n")
 cat("\n")
-cat("\n *** Spatial model ***")
+cat("\n *** Spatial model (gamma = 0.25) ***")
 cat("\nSample size",sum(round(solution3$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s3

@@ -4,15 +4,15 @@
 # R script for simulated population
 #--------------------------------------------------------------------
 library(SamplingStrata)
-library(rgdal)
-library(spdep)
+library(rgdal) # readOGR
+library(spdep) # poly2nb
 library(gstat)
 library(automap)
-library(rgeos)
-library(geoR)
-library(spatstat)
-library(automap)
-library(spatialreg)
+library(rgeos) # gCentroid
+library(geoR) # grf
+# library(spatstat)
+# library(automap)
+# library(spatialreg)
 
 #--------------------------------------------------------------
 # PREPARATION OF DATA
@@ -127,12 +127,14 @@ lm_1 <- lm(target~P1,data=spoints_samp)
 summary(lm_1)
 # Coefficients:
 #   Estimate Std. Error t value Pr(>|t|)    
-# (Intercept) 126.78536    6.65885   19.04   <2e-16 ***
-#   P1            1.32323    0.02863   46.22   <2e-16 ***
+# (Intercept) 138.66572    6.47114   21.43   <2e-16 ***
+#   P1            1.23919    0.02793   44.38   <2e-16 ***
 #   ---
-# Residual standard error: 99.83 on 465 degrees of freedom
-# Multiple R-squared:  0.8212,	Adjusted R-squared:  0.8208 
-# F-statistic:  2136 on 1 and 465 DF,  p-value: < 2.2e-16
+#   Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+# 
+# Residual standard error: 101.5 on 465 degrees of freedom
+# Multiple R-squared:  0.809,	Adjusted R-squared:  0.8086 
+# F-statistic:  1969 on 1 and 465 DF,  p-value: < 2.2e-16
 
 plot(lm_1)
 
@@ -143,8 +145,8 @@ model$sig2[1] <- summary(lm_1)$sigma
 model$gamma[1] <- 0
 model <- as.data.frame(model)
 model
-# type     beta     sig2         gamma
-# linear   1.323232 99.83204     0
+# type     beta     sig2 gamma
+# 1 linear 1.239193 101.5275     0
 set.seed(1234)
 solution1 <- optimizeStrata2 (
   errors=cv, 
@@ -191,8 +193,8 @@ fit.vgm = autofitVariogram(target ~ P1, spoints_samp,
 plot(v, fit.vgm$var_model)
 fit.vgm$var_model
 # model    psill    range
-# 1   Nug 5753.814   0.0000
-# 2   Exp 4041.294 958.0816
+# 1   Nug 4565.338    0.000
+# 2   Exp 5961.837 1274.153
 
 # prediction with gstat
 
@@ -222,7 +224,8 @@ solution2 <- optimizeStrataSpatial (
   nStrata = 5,
   fitting = summary(lm_pred)$r.squared, # 0.8670416
   range = fit.vgm$var_model$range[2],
-  gamma = 3,
+  kappa = 3,
+  gamma = 0,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
@@ -251,32 +254,44 @@ spplot(bologna,"LABEL")
 # SOLUTION 3 
 # Spatial Linear Model
 
-lm_2 <- lm(target ~ P1 + W1, data=frame[camp,])
+lm_2 <- lm(target ~ P1 + P1W, data=spoints_samp)
 summary(lm_2)
-# Coefficients:
-#   Estimate Std. Error t value Pr(>|t|)    
-# (Intercept) -5.24287    4.28806  -1.223    0.222    
-# P1           0.99936    0.01490  67.067   <2e-16 ***
-#   W1         1.03155    0.02402  42.940   <2e-16 ***
-#   ---
-# Residual standard error: 44.81 on 464 degrees of freedom
-# Multiple R-squared:  0.9641,	Adjusted R-squared:  0.9639 
-
-
-
+summary(lm_2)$sigma^2
 # plot(lm_2)
+
+# Estimate psill and range on residuals of lm_2
+spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
+spoints_samp@data$res_spatial <- summary(lm_2)$residuals
+
+v2 <- variogram(res_spatial  ~ 1, data=spoints_samp, cutoff=3000, width=3000/30)
+plot(v2)
+fit.vgm2 = autofitVariogram(res_spatial  ~ 1, spoints_samp, model = c("Exp","Sph"))
+plot(v2, fit.vgm2$var_model)
+fit.vgm2$var_model
+# fit.vgm$var_model
+
+v3 <- variogram(fit_spatial  ~ res_spatial, data=spoints_samp, cutoff=3000, width=3000/30)
+plot(v3)
+fit.vgm3 = autofitVariogram(fit_spatial  ~ res_spatial, spoints_samp, model = c("Exp","Sph"))
+plot(v3, fit.vgm3$var_model)
+fit.vgm3$var_model
+
+
 
 model <- NULL
 model$type[1] <- "spatial"
 model$beta[1] <- summary(lm_2)$coefficients[2]
 model$beta2[1] <- summary(lm_2)$coefficients[3]
-model$sig2[1] <- fit.vgm$var_model$psill[2]
-model$range[1] <- fit.vgm$var_model$range[2]
-model$gamma[1] <- NA
+# model$sig2[1] <- summary(lm_2)$sigma^2
+model$sig2[1] <- fit.vgm2$var_model$psill[2]
+model$range[1] <- fit.vgm2$var_model$range[2]
+model$sig2_2[1] <- fit.vgm3$var_model$psill[2]
+model$range_2[1] <- fit.vgm3$var_model$range[2]
+model$gamma[1] <- 0.25
+model$fitting[1] <- summary(lm_2)$r.square
 model <- as.data.frame(model)
 model
-# type      beta    beta2     sig2    range       gamma
-# spatial 0.9993553 1.031549 4041.294 958.0816    NA
+
 set.seed(1234)
 solution3 <- optimizeStrata2 (
   errors=cv, 

@@ -136,7 +136,8 @@ frame$var4 <- df$Zn.var
 kmeans <- KmeansSolutionSpatial(frame,
                                 fitting=1,
                                 range=800,
-                                gamma=1,
+                                kappa=1,
+                                gamma=0,
                                 errors=cv,
                                 maxclusters = 10)
 # The difference in sample size after nStrata = 5 is negligible
@@ -155,7 +156,8 @@ solution <- optimizeStrataSpatial (
   nStrata = 5,
   fitting = 1,
   range = 800,
-  gamma = 1,
+  kappa = 1,
+  gamma = 0,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
