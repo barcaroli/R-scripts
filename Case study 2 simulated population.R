@@ -136,12 +136,23 @@ summary(lm_1)
 # Multiple R-squared:  0.809,	Adjusted R-squared:  0.8086 
 # F-statistic:  1969 on 1 and 465 DF,  p-value: < 2.2e-16
 
+# Heteroscedasticity index
+df1 <- NULL
+df1$x <- spoints_samp@data$P1
+df1$p <- predict(lm_1,spoints_samp@data)
+df1$e <- summary(lm_1)$residuals
+df1 <- as.data.frame(df1)
+source("computeGamma.R")
+gamma_sigma_1 <- computeGamma(dataset=df1)
+gamma_sigma_1
+
+
 plot(lm_1)
 
 model <- NULL
 model$type[1] <- "linear"
 model$beta[1] <- summary(lm_1)$coefficients[2]
-model$sig2[1] <- summary(lm_1)$sigma
+model$sig2[1] <- summary(lm_1)$sigma^2
 model$gamma[1] <- 0
 model <- as.data.frame(model)
 model
@@ -222,7 +233,7 @@ solution2 <- optimizeStrataSpatial (
   iter = 50,
   pops = 10,
   nStrata = 5,
-  fitting = summary(lm_pred)$r.squared, # 0.8670416
+  fitting = summary(lm_pred)$r.squared, # 0.8728149
   range = fit.vgm$var_model$range[2],
   kappa = 3,
   gamma = 0,
@@ -316,6 +327,16 @@ unlink("./simulation",recursive=TRUE)
 val3 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
 val1$rel_bias
 val3$coeff_var 
+
+# Comparison with same sample size than Solution 2
+size <- sum(solution2$aggr_strata$SOLUZ)
+newstrata <- adjustSize(size,outstrata)
+sum(newstrata$SOLUZ)
+newstrata
+unlink("./simulation",recursive=TRUE)
+val3a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
+val3a$rel_bias
+val3a$coeff_var 
 
 # Plot
 colnames(framenew)[1] <- "SEZ"
