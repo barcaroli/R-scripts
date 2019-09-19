@@ -106,7 +106,7 @@ solution <- optimizeStrataSpatial (
   framesamp=frame,
   iter = 50,
   pops = 10,
-  nStrata = 3,
+  nStrata = 5,
   fitting = 1,
   range = fit.vgm$var_model$range[2],
   kappa = 1,
@@ -145,9 +145,10 @@ spplot(frameres3,c("LABEL"), col.regions=bpy.colors(5))
 # Solution with Ospats
 #---------------------
 
-#------------------ Ospats processing -----
-# N.B. : use only Julia 0.6.4 
-#------------------------------------------
+#------------------ Ospats processing -------------------------
+# N.B. : (1) use only Julia 0.6.4 
+# (2) Modify the complete path of ./ospats in main.jl at line 9
+#--------------------------------------------------------------
 setwd("./ospats")
 # devtools::install_github("Non-Contradiction/JuliaCall")
 library(JuliaCall)
@@ -161,16 +162,19 @@ file$id <- c(1:nrow(frame))
 file$z <- frame$Y1
 file$var <- frame$var1+add_variance
 file <- as.data.frame(file)
-write.table(file,"example.txt",row.names=F,col.names=F,sep=",",quote=F)
+write.table(file,"meuse.txt",row.names=F,col.names=F,sep=",",quote=F)
 #--------------------------------------------------------
 julia_console()
 include("main.jl")
 exit
 #--------------------------------------------------------
-fr <- read.table("stratification",sep=",",header=TRUE,dec=".",stringsAsFactors = FALSE)
-colnames(fr) <- c("lon","lat","stratum")
+# fr <- read.table("stratification",sep=",",header=TRUE,dec=".",stringsAsFactors = FALSE)
+# colnames(fr) <- c("lon","lat","stratum")
+fr <- read.table("stratification",header=FALSE)
+colnames(fr) <- "stratum"
 table(fr$stratum)
-frameone <- merge(frame,fr,by=c("lon","lat"))
+# frameone <- merge(frame,fr,by=c("lon","lat"))
+frameone <- cbind(frame,fr)
 strata <- aggrStrataSpatial(dataset=frameone,
                             fitting=1,
                             range = fit.vgm$var_model$range[2], 
@@ -181,14 +185,15 @@ strata <- aggrStrataSpatial(dataset=frameone,
 strata$allocation <- bethel(strata,cv)
 # sink("./output/ospats_strata.txt")
 strata
-# sink()
 # stratum    N COST CENS DOM1        M1       S1 allocation
-# 1       1 1065    1    0    1 143.00822 73.59579         43
-# 2       2  677    1    0    1 254.62742 87.53205         33
-# 3       3 1360    1    0    1  61.96497 71.99991         53
+# 1       1  146    1    0    1 338.05849 77.96705          6
+# 2       2  804    1    0    1 106.22683 68.26663         28
+# 3       3  534    1    0    1 231.61554 74.00451         21
+# 4       4  589    1    0    1 163.32563 71.54368         22
+# 5       5 1030    1    0    1  52.98693 70.85171         38
 
 # Plot
-spfr <- SpatialPointsDataFrame(data=fr, coords=cbind(fr$lon,fr$lat) )
+spfr <- SpatialPointsDataFrame(data=frameone, coords=cbind(frameone$lon,frameone$lat) )
 spfr2 <- SpatialPixelsDataFrame(points=spfr[c("lon","lat")], data=fr)
 spfr2$Ospats <- as.factor(fr$stratum)
 spplot(spfr2,c("Ospats"), col.regions=bpy.colors(5))
@@ -197,23 +202,25 @@ spplot(spfr2,c("Ospats"), col.regions=bpy.colors(5))
 #---------------------------------
 # Ospats
 # sink("./output/ospats_strata.txt")
-strata
-# sink()
+strata[order(strata$M1),]
 # stratum    N COST CENS DOM1        M1       S1 allocation
-# 1       1 1065    1    0    1 143.00822 73.59579         43
-# 2       2  677    1    0    1 254.62742 87.53205         33
-# 3       3 1360    1    0    1  61.96497 71.99991         53
+# 5       5 1030    1    0    1  52.98693 70.85171         38
+# 2       2  804    1    0    1 106.22683 68.26663         28
+# 4       4  589    1    0    1 163.32563 71.54368         22
+# 3       3  534    1    0    1 231.61554 74.00451         21
+# 1       1  146    1    0    1 338.05849 77.96705          6
 sum(bethel(strata,cv))
 table(fr$stratum)
 #---------------------------------
 # SamplingStrata
-solution$aggr_strata
-# STRATO    N        M1       S1 COST CENS DOM1 X1    SOLUZ
-# 1      1 1360  61.96126 72.01323    1    0    1  1 52.86037
-# 2      2 1073 143.41700 73.77912    1    0    1  2 42.72796
-# 3      3  670 255.32415 87.43633    1    0    1  3 31.61882
+# STRATO    N        M1       S1 COST CENS DOM1 X1     SOLUZ
+# 1      1  279  27.55464 66.50251    1    0    1  1  9.441627
+# 2      2 1134  72.36470 68.94567    1    0    1  2 39.785483
+# 3      3  862 137.71894 71.28072    1    0    1  3 31.266836
+# 4      4  659 220.02812 75.03269    1    0    1  4 25.161731
+# 5      5  169 329.93712 79.53935    1    0    1  5  6.840271
 sum(bethel(solution$aggr_strata,cv))
 table(framenew$LABEL)
 
-# save.image(file="lead_3strata.RData")
+# save.image(file="lead_5strata.RData")
 

@@ -69,9 +69,14 @@ Comune_BO_geo@data$eps1<-eps1$data[,1]
 # Comune_BO_geo@data$eps1<-eps1$data
 
 # Create the variable of interest (target)
+# Comune_BO_geo@data$target <- beta1*Comune_BO_geo@data$P1+
+#                              beta2*Comune_BO_geo@data$P1W+
+#                              Comune_BO_geo@data$eps1
+gamma <- 0.1
 Comune_BO_geo@data$target <- beta1*Comune_BO_geo@data$P1+
                              beta2*Comune_BO_geo@data$P1W+
-                             Comune_BO_geo@data$eps1
+                             Comune_BO_geo@data$eps1 * Comune_BO_geo@data$P1^gamma
+Comune_BO_geo@data$target <- ifelse(Comune_BO_geo@data$target < 0, 0, Comune_BO_geo@data$target)
 summary(Comune_BO_geo@data$target)
 
 # Plot 
@@ -126,24 +131,25 @@ cv
 lm_1 <- lm(target~P1,data=spoints_samp)
 summary(lm_1)
 # Coefficients:
-#   Estimate Std. Error t value Pr(>|t|)    
-# (Intercept) 138.66572    6.47114   21.43   <2e-16 ***
-#   P1            1.23919    0.02793   44.38   <2e-16 ***
+#   Estimate Std. Error t value            Pr(>|t|)    
+# (Intercept) 139.69759    7.16503   19.50 <0.0000000000000002 ***
+#   P1            1.23194    0.03092   39.84 <0.0000000000000002 ***
 #   ---
 #   Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 # 
-# Residual standard error: 101.5 on 465 degrees of freedom
-# Multiple R-squared:  0.809,	Adjusted R-squared:  0.8086 
-# F-statistic:  1969 on 1 and 465 DF,  p-value: < 2.2e-16
+# Residual standard error: 112.4 on 465 degrees of freedom
+# Multiple R-squared:  0.7734,	Adjusted R-squared:  0.773 
+# F-statistic:  1587 on 1 and 465 DF,  p-value: < 0.00000000000000022
+# Breusch-Pagan test on heteroscedasticity
+
+library(lmtest)
+bptest(ST1 ~ P1,data=spoints_samp)
 
 # Heteroscedasticity index
-df1 <- NULL
-df1$x <- spoints_samp@data$P1
-df1$p <- predict(lm_1,spoints_samp@data)
-df1$e <- summary(lm_1)$residuals
-df1 <- as.data.frame(df1)
 source("computeGamma.R")
-gamma_sigma_1 <- computeGamma(dataset=df1)
+gamma_sigma_1 <- computeGamma(e=summary(lm_1)$residuals,
+                            x=spoints_samp@data$P1,
+                            nbins=8)
 gamma_sigma_1
 
 
@@ -152,8 +158,8 @@ plot(lm_1)
 model <- NULL
 model$type[1] <- "linear"
 model$beta[1] <- summary(lm_1)$coefficients[2]
-model$sig2[1] <- summary(lm_1)$sigma^2
-model$gamma[1] <- 0
+model$sig2[1] <- gamma_sigma_1[2]^2
+model$gamma[1] <- gamma_sigma_1[1]*2
 model <- as.data.frame(model)
 model
 # type     beta     sig2 gamma
@@ -204,8 +210,8 @@ fit.vgm = autofitVariogram(target ~ P1, spoints_samp,
 plot(v, fit.vgm$var_model)
 fit.vgm$var_model
 # model    psill    range
-# 1   Nug 4565.338    0.000
-# 2   Exp 5961.837 1274.153
+# 1   Nug 6710.095    0.000
+# 2   Exp 6120.874 1147.053
 
 # prediction with gstat
 
@@ -221,6 +227,12 @@ preds <- predict(v.fit, Comune_BO_geo)
 # Add estimated model variance to frame
 frame$pred <- preds$v.pred
 frame$var1 <- preds$v.var
+
+gamma_sigma_2 <- computeGamma(e=(frame$target[camp] - frame$pred[camp]),
+                              x=spoints_samp@data$P1,
+                              nbins=10)
+gamma_sigma_2
+
 # Compute fitting
 lm_pred <- lm(target ~ pred,data=frame)
 summary(lm_pred)
@@ -233,10 +245,10 @@ solution2 <- optimizeStrataSpatial (
   iter = 50,
   pops = 10,
   nStrata = 5,
-  fitting = summary(lm_pred)$r.squared, # 0.8728149
+  fitting = summary(lm_pred)$r.squared, # 0.8301506
   range = fit.vgm$var_model$range[2],
   kappa = 3,
-  gamma = 0,
+  gamma = gamma_sigma_1[1]*2,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
@@ -267,9 +279,13 @@ spplot(bologna,"LABEL")
 
 lm_2 <- lm(target ~ P1 + P1W, data=spoints_samp)
 summary(lm_2)
-summary(lm_2)$sigma^2
+
 # plot(lm_2)
 
+gamma_sigma_3 <- computeGamma(e=(frame$target[camp] - predict(lm_2,data=frame[camp,])),
+                              x=spoints_samp@data$P1,
+                              nbins=8)
+gamma_sigma_3
 # Estimate psill and range on residuals of lm_2
 spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
 spoints_samp@data$res_spatial <- summary(lm_2)$residuals
@@ -294,11 +310,12 @@ model$type[1] <- "spatial"
 model$beta[1] <- summary(lm_2)$coefficients[2]
 model$beta2[1] <- summary(lm_2)$coefficients[3]
 # model$sig2[1] <- summary(lm_2)$sigma^2
-model$sig2[1] <- fit.vgm2$var_model$psill[2]
+# model$sig2[1] <- fit.vgm2$var_model$psill[2]
+model$sig2[1] <- gamma_sigma_1[2]^2
 model$range[1] <- fit.vgm2$var_model$range[2]
 model$sig2_2[1] <- fit.vgm3$var_model$psill[2]
 model$range_2[1] <- fit.vgm3$var_model$range[2]
-model$gamma[1] <- 0.25
+model$gamma[1] <- gamma_sigma_1[1]*2
 model$fitting[1] <- summary(lm_2)$r.square
 model <- as.data.frame(model)
 model
@@ -346,35 +363,41 @@ bologna@data$LABEL <- as.factor(bologna@data$LABEL)
 spplot(bologna,"LABEL")
 
 ####################################################################
-sink("report_simulated_population.txt")
-cat("\n ------------------------------\n")
-cat("\n Report on simulated population\n")
-cat("\n ------------------------------\n")
-cat("\n *** Linear model ***")
-cat("\nSample size",sum(solution1$aggr_strata$SOLUZ))
+sink("reportSimPop.txt")
+# cat("\n ---------------------------------------------\n")
+# cat("\n Report on real population (foreign residents)\n")
+# cat("\n ---------------------------------------------\n")
+# cat("\n")
+# cat("\n *** No model (Y1 = ST1) ***")
+# cat("\nSample size",sum(round(solution0$aggr_strata$SOLUZ)))
+# cat("\nStrata structure\n")
+# s0
+# cat("\n  CV(ST1)\n")
+# val0$coeff_var
+# cat("\n")
+# cat("\n")
+cat("\n *** Linear model (gamma/sigma = ",gamma_sigma_1,") ***")
+cat("\nSample size",sum(round(solution1$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s1
 cat("\n  CV(P1)  CV(target)\n")
 val1$coeff_var
-cat("\n")
-cat("\n")
-cat("\n *** Kriging ***")
-cat("\nSample size",sum(solution2$aggr_strata$SOLUZ))
+# cat("\n")
+# cat("\n")
+cat("\n *** Kriging (gamma/sigma = ",gamma_sigma_2,") ***")
+cat("\nSample size",sum(round(solution2$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s2
 cat("\n  CV(P1)  CV(target)\n")
 val2$coeff_var
-cat("\n")
-cat("\n")
-cat("\n *** Spatial model ***")
-cat("\nSample size",sum(solution3$aggr_strata$SOLUZ))
+# cat("\n")
+# cat("\n")
+cat("\n *** Spatial model (gamma/sigma = ",gamma_sigma_3,") ***")
+cat("\nSample size",sum(round(solution3$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s3
 cat("\n  CV(P1)  CV(target)\n")
-val3$coeff_var
-cat("\n")
-cat("\n")
-sink()
+val3$coeff_varsink()
 ####################################################################
 
 save.image(file="Bologna simulated population.RData")

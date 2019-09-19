@@ -4,6 +4,7 @@
 # R script for real population (foreign residents : variable ST1)
 #--------------------------------------------------------------------
 library(SamplingStrata)
+library(MASS) # ginv
 library(rgdal) # readOGR
 library(spdep) # poly2nb
 library(gstat)
@@ -156,14 +157,15 @@ summary(lm_1)
 
 # plot(lm_1)
 
+
+# Breusch-Pagan test on heteroscedasticity
+library(lmtest)
+bptest(ST1 ~ P1,data=spoints_samp)
 # Heteroscedasticity index
-df1 <- NULL
-df1$x <- spoints_samp@data$P1
-df1$p <- predict(lm_1,spoints_samp@data)
-df1$e <- summary(lm_1)$residuals
-df1 <- as.data.frame(df1)
 source("computeGamma.R")
-gamma_sigma_1 <- computeGamma(dataset=df1)
+gamma_sigma_1 <- computeGamma(e=summary(lm_1)$residuals,
+                              x=spoints_samp@data$P1,
+                              nbins=8)
 gamma_sigma_1
 
 model <- NULL
@@ -244,20 +246,44 @@ names(preds)
 frame$pred <- preds$v.pred
 frame$var1 <- preds$v.var
 
+head(frame)
+
 # Compute fitting
 plot(frame$ST1,frame$pred)
 lm_pred <- lm(ST1 ~ pred,data=frame)
 summary(lm_pred)
+summary(lm_pred)$sigma^2
 summary(lm_pred)$r.squared
 
 # Compute heteroscedasticity index
-df1 <- NULL
-df1$x <- spoints_samp@data$P1
-df1$e <- frame$ST1[camp] - frame$pred[camp]
-df1 <- as.data.frame(df1)
 source("computeGamma.R")
-gamma_sigma_2 <- computeGamma(dataset=df1)
+gamma_sigma_2 <- computeGamma(e=(frame$ST1[camp] - frame$pred[camp]),
+                              x=spoints_samp@data$P1,
+                              nbins=8)
 gamma_sigma_2
+
+#---------------------
+# Compute model variance
+# v <- gamma_est[2]^2 * (1 + frame$P1 * c(solve(crossprod(frame$P1))) * t(frame$P1))
+# v <- var(summary(lm_1)$residuals) * (1 + frame$P1 * c(solve(crossprod(frame$P1))) * t(frame$P1))
+# frame$var1 <- v[1,] 
+# head(frame)
+# set.seed(1234)
+# solution2 <- optimizeStrataSpatial (
+#   errors=cv, 
+#   framesamp=frame,
+#   iter = 75,
+#   pops = 10,
+#   nStrata = 5,
+#   fitting = summary(lm_pred)$r.squared, # 0.6240108
+#   range = 0.0000000000001,
+#   kappa = 3,
+#   gamma = gamma_sigma_2[1]*2,
+#   writeFiles = FALSE,
+#   showPlot = TRUE,
+#   parallel = FALSE
+# )
+#---------------------
 
 
 set.seed(1234)
@@ -266,7 +292,7 @@ solution2 <- optimizeStrataSpatial (
   framesamp=frame,
   iter = 75,
   pops = 10,
-  nStrata = 5,
+  nStrata = 10,
   fitting = summary(lm_pred)$r.squared, # 0.6240108
   range = fit.vgm$var_model$range[2],
   kappa = 3,
@@ -314,14 +340,10 @@ summary(lm_2)
 # plot(lm_2)
 
 # Compute heteroscedasticity index
-df1 <- NULL
-df1$x <- spoints_samp@data$P1
-df1$p <- predict(lm_2,data=frame[camp,])
-df1$e <- frame$ST1[camp] - df1$p
-df1 <- as.data.frame(df1)
-source("computeGamma2_rev3.R")
-gamma_sigma_3 <- computeGamma(dataset=df1)
-gamma_sigma_3
+source("computeGamma")
+gamma_sigma_3 <- computeGamma(e=(frame$ST1[camp] - predict(lm_2,data=frame[camp,])),
+                              x=spoints_samp@data$P1,
+                              nbins=8)
 
 # Estimate psill and range on residuals of lm_2
 spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
@@ -401,43 +423,43 @@ bologna@data$LABEL <- as.factor(bologna@data$LABEL)
 spplot(bologna,"LABEL")
 
 ####################################################################
-sink("report_real_population.txt")
-cat("\n ---------------------------------------------\n")
-cat("\n Report on real population (foreign residents)\n")
-cat("\n ---------------------------------------------\n")
-cat("\n")
-cat("\n *** No model (Y1 = ST1) ***")
-cat("\nSample size",sum(round(solution0$aggr_strata$SOLUZ)))
-cat("\nStrata structure\n")
-s0
-cat("\n  CV(ST1)\n")
-val0$coeff_var
-cat("\n")
-cat("\n")
+sink("reportRealPop.txt")
+# cat("\n ---------------------------------------------\n")
+# cat("\n Report on real population (foreign residents)\n")
+# cat("\n ---------------------------------------------\n")
+# cat("\n")
+# cat("\n *** No model (Y1 = ST1) ***")
+# cat("\nSample size",sum(round(solution0$aggr_strata$SOLUZ)))
+# cat("\nStrata structure\n")
+# s0
+# cat("\n  CV(ST1)\n")
+# val0$coeff_var
+# cat("\n")
+# cat("\n")
 cat("\n *** Linear model (gamma/sigma = ",gamma_sigma_1,") ***")
 cat("\nSample size",sum(round(solution1$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s1
 cat("\n  CV(P1)  CV(ST1)\n")
 val1$coeff_var
-cat("\n")
-cat("\n")
+# cat("\n")
+# cat("\n")
 cat("\n *** Kriging (gamma/sigma = ",gamma_sigma_2,") ***")
 cat("\nSample size",sum(round(solution2$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s2
 cat("\n  CV(P1)  CV(ST1)\n")
 val2$coeff_var
-cat("\n")
-cat("\n")
+# cat("\n")
+# cat("\n")
 cat("\n *** Spatial model (gamma/sigma = ",gamma_sigma_3,") ***")
 cat("\nSample size",sum(round(solution3$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s3
 cat("\n  CV(P1)  CV(ST1)\n")
 val3$coeff_var
-cat("\n")
-cat("\n")
+# cat("\n")
+# cat("\n")
 sink()
 ####################################################################
 
