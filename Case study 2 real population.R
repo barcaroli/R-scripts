@@ -4,7 +4,7 @@
 # R script for real population (foreign residents : variable ST1)
 #--------------------------------------------------------------------
 library(SamplingStrata)
-library(MASS) # ginv
+# library(MASS) # ginv
 library(rgdal) # readOGR
 library(spdep) # poly2nb
 library(gstat)
@@ -146,15 +146,6 @@ frame$W1 <- Comune_BO_geo$P1W
 lm_1 <- lm(ST1 ~ P1,data=spoints_samp)
 summary(lm_1)
 
-# Coefficients:
-#   Estimate Std. Error t value            Pr(>|t|)    
-# (Intercept)  0.40386    1.08621   0.372                0.71    
-# P1           0.11371    0.00467  24.349 <0.0000000000000002 ***
-#   ---
-# Residual standard error: 16.28 on 465 degrees of freedom
-# Multiple R-squared:  0.5604,	Adjusted R-squared:  0.5595 
-
-
 # plot(lm_1)
 
 
@@ -162,18 +153,16 @@ summary(lm_1)
 library(lmtest)
 bptest(ST1 ~ P1,data=spoints_samp)
 # Heteroscedasticity index
-source("computeGamma.R")
 gamma_sigma_1 <- computeGamma(e=summary(lm_1)$residuals,
                               x=spoints_samp@data$P1,
-                              nbins=8)
+                              nbins=6)
 gamma_sigma_1
 
 model <- NULL
 model$type[1] <- "linear"
 model$beta[1] <- summary(lm_1)$coefficients[2]
+model$gamma[1] <- gamma_sigma_1[1]
 model$sig2[1] <- gamma_sigma_1[2]^2
-model$gamma[1] <- gamma_sigma_1[1]*2
-# model$gamma <- gamma_est
 model <- as.data.frame(model)
 model
 
@@ -223,12 +212,11 @@ v <- variogram(ST1 ~ P1, data=spoints_samp, cutoff=3000, width=3000/30)
 plot(v)
 # Estimation of psill, range and nugget with automap
 fit.vgm = autofitVariogram(ST1 ~ P1, spoints_samp, 
-                           model = c("Exp", "Sph" ))
+                           model = c("Exp", "Sph", "Mat" ))
+                           # model = c("Exp", "Sph"))
+                           
 plot(v, fit.vgm$var_model)
 fit.vgm$var_model
-# model     psill    range
-# 1   Nug 219.16587   0.0000
-# 2   Exp  52.69629 683.9035
 
 # prediction with gstat
 
@@ -236,67 +224,54 @@ g <- gstat(NULL, "v", ST1 ~ P1, spoints_samp)
 v <- variogram(g)
 v.fit <- fit.lmc(v, g, 
                  vgm(psill=fit.vgm$var_model$psill[2], 
-                     model="Exp", 
+                     model=fit.vgm$var_model$model[2], 
                      range=fit.vgm$var_model$range[2], 
                      nugget=fit.vgm$var_model$psill[1]))
 preds <- predict(v.fit, Comune_BO_geo)
 names(preds)
+plot(preds$v.pred,preds$v.var)
 
-# Add estimated model variance to frame
-frame$pred <- preds$v.pred
-frame$var1 <- preds$v.var
+# Add predicted values and residuals variance to the frame
+frame1 <- frame
+frame1$Y1 <- preds$v.pred
+frame1$Y1 <- ifelse(frame1$Y1 < 0, 0, frame1$Y1)
+frame1$X1 <- frame1$Y1
+frame1$var1 <- preds$v.var
 
-head(frame)
+head(frame1)
 
 # Compute fitting
-plot(frame$ST1,frame$pred)
-lm_pred <- lm(ST1 ~ pred,data=frame)
+plot(frame1$Y1[camp],(frame$Y1[camp]-frame$ST1[camp]))
+lm_pred <- lm(ST1 ~ Y1,data=frame1)
 summary(lm_pred)
 summary(lm_pred)$sigma^2
 summary(lm_pred)$r.squared
 
 # Compute heteroscedasticity index
-source("computeGamma.R")
-gamma_sigma_2 <- computeGamma(e=(frame$ST1[camp] - frame$pred[camp]),
-                              x=spoints_samp@data$P1,
-                              nbins=8)
+gamma_sigma_2 <- computeGamma(e=(frame1$Y1[camp]-frame1$ST1[camp]),
+                              x=frame1$P1[camp],
+                              nbins=6)
 gamma_sigma_2
+# [1] 0.5571396 0.7981380
 
-#---------------------
-# Compute model variance
-# v <- gamma_est[2]^2 * (1 + frame$P1 * c(solve(crossprod(frame$P1))) * t(frame$P1))
-# v <- var(summary(lm_1)$residuals) * (1 + frame$P1 * c(solve(crossprod(frame$P1))) * t(frame$P1))
-# frame$var1 <- v[1,] 
-# head(frame)
-# set.seed(1234)
-# solution2 <- optimizeStrataSpatial (
-#   errors=cv, 
-#   framesamp=frame,
-#   iter = 75,
-#   pops = 10,
-#   nStrata = 5,
-#   fitting = summary(lm_pred)$r.squared, # 0.6240108
-#   range = 0.0000000000001,
-#   kappa = 3,
-#   gamma = gamma_sigma_2[1]*2,
-#   writeFiles = FALSE,
-#   showPlot = TRUE,
-#   parallel = FALSE
-# )
-#---------------------
+head(frame1)
 
+# frame1$var1 <- gamma_sigma_2[2]^2 * (frame1$Y1^(2*gamma_sigma_2[1]))
+# summary(frame1$var1)
 
+# WITH GAMMA ---------------------------------------------------
 set.seed(1234)
 solution2 <- optimizeStrataSpatial (
   errors=cv, 
-  framesamp=frame,
+  framesamp=frame1,
   iter = 75,
   pops = 10,
-  nStrata = 10,
-  fitting = summary(lm_pred)$r.squared, # 0.6240108
+  nStrata = 5,
+  fitting = summary(lm_pred)$r.squared,
   range = fit.vgm$var_model$range[2],
-  kappa = 3,
-  gamma = gamma_sigma_2[1]*2,
+  kappa = 1,
+  gamma = gamma_sigma_2[1],
+  # gamma = 0,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
@@ -331,6 +306,50 @@ bologna@data <- merge(bologna@data,framenew[,c("SEZ","LABEL")])
 bologna@data$LABEL <- as.factor(bologna@data$LABEL)
 spplot(bologna,"LABEL")
 
+# WITHOUT GAMMA ---------------------------------------------------
+frame1$var2 <- frame1$var1
+frame1$var1 <- gamma_sigma_2[2]^2 * frame1$Y1 ^ (gamma_sigma_2[1] * 2)
+head(frame1)
+set.seed(4321)
+solution2b <- optimizeStrataSpatial (
+  errors=cv, 
+  framesamp=frame1,
+  iter = 50,
+  pops = 10,
+  nStrata = 5,
+  fitting = summary(lm_pred)$r.squared,
+  # fitting = summary(lm_1)$r.squared, 
+  range = fit.vgm$var_model$range[2],
+  kappa = 1,
+  # gamma = gamma_sigma_2[1],
+  gamma = 0,
+  writeFiles = FALSE,
+  showPlot = TRUE,
+  parallel = FALSE
+)
+sum(round(solution2b$aggr_strata$SOLUZ))
+framenew <- solution2b$framenew
+outstrata <- solution2b$aggr_strata
+outstrata
+s2b <- summaryStrata(framenew,outstrata)
+s2b
+framenew$Y2 <- framenew$ST1
+expected_CV(outstrata)
+unlink("./simulation",recursive=TRUE)
+val2b <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
+val2b$rel_bias
+val2b$coeff_var 
+
+# Comparison with same sample size of Solution 1
+size <- sum(solution1$aggr_strata$SOLUZ)
+newstrata <- adjustSize(size,outstrata)
+sum(newstrata$SOLUZ)
+newstrata
+unlink("./simulation",recursive=TRUE)
+val2c <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
+val2c$coeff_var 
+
+
 ################################################################################################
 # SOLUTION 3 
 # Spatial Linear Model
@@ -340,27 +359,26 @@ summary(lm_2)
 # plot(lm_2)
 
 # Compute heteroscedasticity index
-source("computeGamma")
 gamma_sigma_3 <- computeGamma(e=(frame$ST1[camp] - predict(lm_2,data=frame[camp,])),
                               x=spoints_samp@data$P1,
-                              nbins=8)
-
+                              nbins=6)
+gamma_sigma_3
 # Estimate psill and range on residuals of lm_2
 spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
 spoints_samp@data$res_spatial <- summary(lm_2)$residuals
 
 v2 <- variogram(res_spatial  ~ 1, data=spoints_samp, cutoff=3000, width=3000/30)
 plot(v2)
-fit.vgm2 = autofitVariogram(res_spatial  ~ 1, spoints_samp, model = c("Exp","Sph"))
+fit.vgm2 = autofitVariogram(res_spatial  ~ 1, spoints_samp, model = c("Exp","Sph","Mat"))
 plot(v2, fit.vgm2$var_model)
 fit.vgm2$var_model
 # fit.vgm$var_model
 
-v3 <- variogram(fit_spatial  ~ res_spatial, data=spoints_samp, cutoff=3000, width=3000/30)
-plot(v3)
-fit.vgm3 = autofitVariogram(fit_spatial  ~ res_spatial, spoints_samp, model = c("Exp","Sph"))
-plot(v3, fit.vgm3$var_model)
-fit.vgm3$var_model
+# v3 <- variogram(fit_spatial  ~ res_spatial, data=spoints_samp, cutoff=3000, width=3000/30)
+# plot(v3)
+# fit.vgm3 = autofitVariogram(fit_spatial  ~ res_spatial, spoints_samp, model = c("Exp","Sph"))
+# plot(v3, fit.vgm3$var_model)
+# fit.vgm3$var_model
 
 
 
@@ -368,12 +386,12 @@ model <- NULL
 model$type[1] <- "spatial"
 model$beta[1] <- summary(lm_2)$coefficients[2]
 model$beta2[1] <- summary(lm_2)$coefficients[3]
-model$sig2[1] <- fit.vgm2$var_model$psill[2]
-# model$sig2[1] <- gamma_sigma_3[2]^2
+# model$sig2[1] <- fit.vgm2$var_model$psill[2]
+model$sig2[1] <- gamma_sigma_3[2]^2
 model$range[1] <- fit.vgm2$var_model$range[2]
 # model$sig2_2[1] <- fit.vgm3$var_model$psill[2]
 # model$range_2[1] <- fit.vgm3$var_model$range[2]
-model$gamma[1] <- gamma_sigma_3[1]*2
+model$gamma[1] <- gamma_sigma_3[1]
 # model$gamma[1] <- 0
 model$fitting[1] <- summary(lm_2)$r.square
 model <- as.data.frame(model)
@@ -384,7 +402,7 @@ solution3 <- optimizeStrata2 (
   errors=cv, 
   framesamp=frame,
   model=model,
-  iter = 50,
+  iter = 75,
   pops = 10,
   nStrata = 5,
   writeFiles = FALSE,
@@ -404,15 +422,15 @@ val3 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
 val3$rel_bias
 val3$coeff_var 
 
-# Comparison with same sample size of Solution 2
-size <- sum(solution2$aggr_strata$SOLUZ)
+# Comparison with same sample size of Solution 1
+size <- sum(solution1$aggr_strata$SOLUZ)
 newstrata <- adjustSize(size,outstrata)
 sum(newstrata$SOLUZ)
 newstrata
 unlink("./simulation",recursive=TRUE)
-val2a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
-val2a$rel_bias
-val2a$coeff_var 
+val3a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
+val3a$rel_bias
+val3a$coeff_var 
 
 
 # Plot
@@ -437,6 +455,7 @@ sink("reportRealPop.txt")
 # cat("\n")
 # cat("\n")
 cat("\n *** Linear model (gamma/sigma = ",gamma_sigma_1,") ***")
+cat("\nR squared: ",summary(lm_1)$r.squared)
 cat("\nSample size",sum(round(solution1$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s1
@@ -445,19 +464,39 @@ val1$coeff_var
 # cat("\n")
 # cat("\n")
 cat("\n *** Kriging (gamma/sigma = ",gamma_sigma_2,") ***")
+cat("\nR squared: ",summary(lm_pred)$r.squared)
 cat("\nSample size",sum(round(solution2$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s2
 cat("\n  CV(P1)  CV(ST1)\n")
 val2$coeff_var
+cat("... with the same sample size than Linear Model")
+cat("\n  CV(P1)  CV(ST1)\n")
+val2a$coeff_var
+# cat("\n")
+# cat("\n")
+cat("\n *** Kriging (gamma/sigma = ",gamma_sigma_2,") ***")
+cat("\nR squared: ",summary(lm_pred)$r.squared)
+cat("\nSample size",sum(round(solution2b$aggr_strata$SOLUZ)))
+cat("\nStrata structure\n")
+s2b
+cat("\n  CV(P1)  CV(ST1)\n")
+val2b$coeff_var
+cat("... with the same sample size than Linear Model")
+cat("\n  CV(P1)  CV(ST1)\n")
+val2c$coeff_var
 # cat("\n")
 # cat("\n")
 cat("\n *** Spatial model (gamma/sigma = ",gamma_sigma_3,") ***")
+cat("\nR squared: ",summary(lm_2)$r.squared)
 cat("\nSample size",sum(round(solution3$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
 s3
 cat("\n  CV(P1)  CV(ST1)\n")
 val3$coeff_var
+cat("... with the same sample size than Linear Model")
+cat("\n  CV(P1)  CV(ST1)\n")
+val3a$coeff_var
 # cat("\n")
 # cat("\n")
 sink()
