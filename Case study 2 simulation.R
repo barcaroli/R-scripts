@@ -172,7 +172,10 @@ simula <- function(itera,
   summary(lm_pred)
   summary(lm_pred)$sigma^2
   summary(lm_pred)$r.squared
-  # WITH GAMMA  
+
+  frame1$var1 <- gamma_sigma_2[2]^2 * frame1$P1 ^ (gamma_sigma_2[1] * 2)
+  
+  
   set.seed(4321)
   solution2 <- optimizeStrataSpatial (
     errors=cv, 
@@ -184,8 +187,8 @@ simula <- function(itera,
     # fitting = summary(lm_1)$r.squared, 
     range = fit.vgm$var_model$range[2],
     kappa = 1,
-    gamma = gamma_sigma_2[1],
-    # gamma = 0,
+    # gamma = gamma_sigma_2[1],
+    gamma = 0,
     writeFiles = FALSE,
     showPlot = TRUE,
     parallel = FALSE
@@ -202,7 +205,7 @@ simula <- function(itera,
   val2 <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
   val2$rel_bias
   val2$coeff_var 
- 
+  
   # Comparison with same sample size of Solution 1
   size <- sum(solution1$aggr_strata$SOLUZ)
   newstrata <- adjustSize(size,outstrata)
@@ -211,49 +214,6 @@ simula <- function(itera,
   unlink("./simulation",recursive=TRUE)
   val2a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
   val2a$coeff_var 
-  
-  # WITHOUT GAMMA
-  frame1$var1 <- gamma_sigma_2[2]^2 * frame1$Y1 ^ (gamma_sigma_2[1] * 2)
-  
-  
-  set.seed(4321)
-  solution2b <- optimizeStrataSpatial (
-    errors=cv, 
-    framesamp=frame1,
-    iter = 50,
-    pops = 10,
-    nStrata = 5,
-    fitting = summary(lm_pred)$r.squared,
-    # fitting = summary(lm_1)$r.squared, 
-    range = fit.vgm$var_model$range[2],
-    kappa = 1,
-    # gamma = gamma_sigma_2[1],
-    gamma = 0,
-    writeFiles = FALSE,
-    showPlot = TRUE,
-    parallel = FALSE
-  )
-  sum(round(solution2b$aggr_strata$SOLUZ))
-  framenew <- solution2b$framenew
-  outstrata <- solution2b$aggr_strata
-  outstrata
-  s2 <- summaryStrata(framenew,outstrata)
-  s2
-  framenew$Y2 <- framenew$TARGET
-  expected_CV(outstrata)
-  unlink("./simulation",recursive=TRUE)
-  val2b <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
-  val2b$rel_bias
-  val2b$coeff_var 
-  
-  # Comparison with same sample size of Solution 1
-  size <- sum(solution1$aggr_strata$SOLUZ)
-  newstrata <- adjustSize(size,outstrata)
-  sum(newstrata$SOLUZ)
-  newstrata
-  unlink("./simulation",recursive=TRUE)
-  val2c <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
-  val2c$coeff_var 
   
   ################################################################################################
   # SOLUTION 3 
@@ -272,9 +232,9 @@ simula <- function(itera,
   spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
   spoints_samp@data$res_spatial <- summary(lm_2)$residuals
   
-  v2 <- variogram(res_spatial  ~ 1, data=spoints_samp, cutoff=3000, width=3000/30)
+  v2 <- variogram(res_spatial  ~ 1, data=spoints_samp)
   plot(v2)
-  fit.vgm2 = autofitVariogram(res_spatial  ~ 1, spoints_samp, model = c("Exp","Sph"))
+  fit.vgm2 = autofitVariogram(res_spatial  ~ 1, spoints_samp, model = c("Exp","Sph","Mat"))
   plot(v2, fit.vgm2$var_model)
   fit.vgm2$var_model
   # fit.vgm$var_model
@@ -348,9 +308,9 @@ simula <- function(itera,
                  fitting2 = summary(lm_pred)$r.squared, 
                  range2 = fit.vgm$var_model$range[2],
                  cv2a = as.numeric(val2a$coeff_var[2]),
-                 n2b = sum(round(solution2b$aggr_strata$SOLUZ)),
-                 cv2b = as.numeric(val2b$coeff_var[2]),
-                 cv2c = as.numeric(val2c$coeff_var[2]),
+                 # n2b = sum(round(solution2b$aggr_strata$SOLUZ)),
+                 # cv2b = as.numeric(val2b$coeff_var[2]),
+                 # cv2c = as.numeric(val2c$coeff_var[2]),
                  n3 = sum(round(solution3$aggr_strata$SOLUZ)),
                  cv3 = as.numeric(val3$coeff_var[2]),
                  gamma3 <- as.numeric(gamma_sigma_3[1]*2),
@@ -378,9 +338,9 @@ res$var2 <- NA
 res$fitting2 <- NA
 res$range2 <- NA
 res$cv2a <- NA
-res$n2b <- NA
-res$cv2b <- NA
-res$cv2c <- NA
+# res$n2b <- NA
+# res$cv2b <- NA
+# res$cv2c <- NA
 res$n3 <- NA
 res$cv3 <- NA
 res$gamma3 <- NA
@@ -411,15 +371,15 @@ for (i in (1:nrow(iters))) {
   res$fitting2[i] <- results$fitting2
   res$range2[i] <- results$range2
   res$cv2a[i] <- as.numeric(results$cv2a)
-  res$n2b[i] = results$n2b
-  res$cv2b[i] = results$cv2b
-  res$cv2c[i] = results$cv2c
+  # res$n2b[i] = results$n2b
+  # res$cv2b[i] = results$cv2b
+  # res$cv2c[i] = results$cv2c
   res$n3[i] <- results$n3
   res$cv3[i] <- as.numeric(results$cv3)
-  res$gamma3[i] <- results[[17]]
-  res$var3[i] <- results[[18]]
+  res$gamma3[i] <- results[[14]]
+  res$var3[i] <- results[[15]]
   res$fitting3[i] <- results$fitting3
   res$range3[i] <- results$range3 
   res$cv3a[i] <- as.numeric(results$cv3a)
 }
-write.table(res,"simul_results_gamma_4_var_eps_2000_2.csv",row.names=F,col.names=T,dec=".",quote=F,sep=";")
+write.table(res,"simul_results_gamma_4_var_eps_2000_4.csv",row.names=F,col.names=T,dec=".",quote=F,sep=";")

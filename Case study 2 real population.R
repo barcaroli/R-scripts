@@ -68,6 +68,7 @@ df$dom <- 1
 
 ######################################################
 # Selection of a sample of EAs
+spoints <- comune_BO_geo
 sample_rate <- 0.2
 samplesize <- round(nrow(Comune_BO_geo)*sample_rate)
 set.seed(1234)
@@ -250,7 +251,7 @@ summary(lm_pred)$r.squared
 # Compute heteroscedasticity index
 gamma_sigma_2 <- computeGamma(e=(frame1$Y1[camp]-frame1$ST1[camp]),
                               x=frame1$P1[camp],
-                              nbins=6)
+                              nbins=20)
 gamma_sigma_2
 # [1] 0.5571396 0.7981380
 
@@ -260,61 +261,61 @@ head(frame1)
 # summary(frame1$var1)
 
 # WITH GAMMA ---------------------------------------------------
-set.seed(1234)
-solution2 <- optimizeStrataSpatial (
-  errors=cv, 
-  framesamp=frame1,
-  iter = 75,
-  pops = 10,
-  nStrata = 5,
-  fitting = summary(lm_pred)$r.squared,
-  range = fit.vgm$var_model$range[2],
-  kappa = 1,
-  gamma = gamma_sigma_2[1],
-  # gamma = 0,
-  writeFiles = FALSE,
-  showPlot = TRUE,
-  parallel = FALSE
-)
-sum(solution2$aggr_strata$SOLUZ)
-framenew <- solution2$framenew
-outstrata <- solution2$aggr_strata
-outstrata
-s2 <- summaryStrata(framenew,outstrata)
-s2
-framenew$Y2 <- framenew$ST1
-expected_CV(outstrata)
-unlink("./simulation",recursive=TRUE)
-val2 <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
-val2$rel_bias
-val2$coeff_var 
-
-# Comparison with same sample size than Solution 1
-size <- sum(solution1$aggr_strata$SOLUZ)
-newstrata <- adjustSize(size,outstrata)
-sum(newstrata$SOLUZ)
-newstrata
-unlink("./simulation",recursive=TRUE)
-val2a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
-val2a$rel_bias
-val2a$coeff_var 
-
-# Plot
-colnames(framenew)[1] <- "SEZ"
-bologna <- Comune_BO_geo
-bologna@data <- merge(bologna@data,framenew[,c("SEZ","LABEL")])
-bologna@data$LABEL <- as.factor(bologna@data$LABEL)
-spplot(bologna,"LABEL")
+# set.seed(1234)
+# solution2 <- optimizeStrataSpatial (
+#   errors=cv, 
+#   framesamp=frame1,
+#   iter = 75,
+#   pops = 10,
+#   nStrata = 5,
+#   fitting = summary(lm_pred)$r.squared,
+#   range = fit.vgm$var_model$range[2],
+#   kappa = 1,
+#   gamma = gamma_sigma_2[1],
+#   # gamma = 0,
+#   writeFiles = FALSE,
+#   showPlot = TRUE,
+#   parallel = FALSE
+# )
+# sum(solution2$aggr_strata$SOLUZ)
+# framenew <- solution2$framenew
+# outstrata <- solution2$aggr_strata
+# outstrata
+# s2 <- summaryStrata(framenew,outstrata)
+# s2
+# framenew$Y2 <- framenew$ST1
+# expected_CV(outstrata)
+# unlink("./simulation",recursive=TRUE)
+# val2 <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
+# val2$rel_bias
+# val2$coeff_var 
+# 
+# # Comparison with same sample size than Solution 1
+# size <- sum(solution1$aggr_strata$SOLUZ)
+# newstrata <- adjustSize(size,outstrata)
+# sum(newstrata$SOLUZ)
+# newstrata
+# unlink("./simulation",recursive=TRUE)
+# val2a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
+# val2a$rel_bias
+# val2a$coeff_var 
+# 
+# # Plot
+# colnames(framenew)[1] <- "SEZ"
+# bologna <- Comune_BO_geo
+# bologna@data <- merge(bologna@data,framenew[,c("SEZ","LABEL")])
+# bologna@data$LABEL <- as.factor(bologna@data$LABEL)
+# spplot(bologna,"LABEL")
 
 # WITHOUT GAMMA ---------------------------------------------------
-frame1$var2 <- frame1$var1
-frame1$var1 <- gamma_sigma_2[2]^2 * frame1$Y1 ^ (gamma_sigma_2[1] * 2)
+frame1$var2 <- NULL
+frame1$var1 <- gamma_sigma_2[2]^2 * frame1$P1 ^ (gamma_sigma_2[1] * 2)
 head(frame1)
 set.seed(4321)
 solution2b <- optimizeStrataSpatial (
   errors=cv, 
   framesamp=frame1,
-  iter = 50,
+  iter = 75,
   pops = 10,
   nStrata = 5,
   fitting = summary(lm_pred)$r.squared,
@@ -463,16 +464,16 @@ cat("\n  CV(P1)  CV(ST1)\n")
 val1$coeff_var
 # cat("\n")
 # cat("\n")
-cat("\n *** Kriging (gamma/sigma = ",gamma_sigma_2,") ***")
-cat("\nR squared: ",summary(lm_pred)$r.squared)
-cat("\nSample size",sum(round(solution2$aggr_strata$SOLUZ)))
-cat("\nStrata structure\n")
-s2
-cat("\n  CV(P1)  CV(ST1)\n")
-val2$coeff_var
-cat("... with the same sample size than Linear Model")
-cat("\n  CV(P1)  CV(ST1)\n")
-val2a$coeff_var
+# cat("\n *** Kriging (gamma/sigma = ",gamma_sigma_2,") ***")
+# cat("\nR squared: ",summary(lm_pred)$r.squared)
+# cat("\nSample size",sum(round(solution2$aggr_strata$SOLUZ)))
+# cat("\nStrata structure\n")
+# s2
+# cat("\n  CV(P1)  CV(ST1)\n")
+# val2$coeff_var
+# cat("... with the same sample size than Linear Model")
+# cat("\n  CV(P1)  CV(ST1)\n")
+# val2a$coeff_var
 # cat("\n")
 # cat("\n")
 cat("\n *** Kriging (gamma/sigma = ",gamma_sigma_2,") ***")

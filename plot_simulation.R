@@ -1,13 +1,13 @@
-est <- read.csv2("simul_results_gamma_4_var_eps_200.csv",dec=".")
+est <- read.csv2("simul_results_gamma_4_var_eps_2000_4.csv",dec=".")
 est <- est[1:15,]
 
-maxi = (max(c(est$n1),(est$n2b),(est$n3)))
-plot(est$n1, col = "red", lty = 4, type = "p", pch = "&", cex = 1,cex.lab = 1.3,
+maxi = (max(c(est$n1),(est$n2),(est$n3))) + 100
+plot(est$n1, col = "red", lty = 4, type = "p", pch = "&", cex = 1.3,cex.lab = 1.3,
      xlab = "Heteroscedasticity", 
      ylab = "Sample size",
      ylim = c(0,maxi), axes = F)
-points(est$n2b, col = "black", lty = 4, type = "p", pch = "$", cex = 1)
-points(est$n3, col = "blue", lty = 4, type = "p", pch = "£", cex = 1)
+points(est$n2, col = "black", lty = 4, type = "p", pch = "$", cex = 1.3)
+points(est$n3, col = "blue", lty = 4, type = "p", pch = "£", cex = 1.3)
 
 abline(0,0)
 axis(1, at=1:nrow(est), labels = est$gamma,las=2)
@@ -20,13 +20,13 @@ legend("topleft",
 
 # title("Performance in terms of sampling size",cex.main=1.5)
 
-maxi = (max(c(est$cv1),(est$cv2b),(est$cv3)))
-plot(est$cv1, col = "red", lty = 4, type = "p", pch = "&", cex = 1,cex.lab = 1.3,
+maxi = (max(c(est$cv1),(est$cv2b),(est$cv3)))+0.02
+plot(est$cv1, col = "red", lty = 4, type = "p", pch = "&", cex = 1.3,cex.lab = 1.3,
      xlab = "Heteroscedasticity", 
      ylab = "CV",
      ylim = c(0,maxi+0.01), axes = F)
-points(est$cv2b, col = "black", lty = 4, type = "p", pch = "$", cex = 1)
-points(est$cv3, col = "blue", lty = 4, type = "p", pch = "£", cex = 1)
+points(est$cv2, col = "black", lty = 4, type = "p", pch = "$", cex = 1.3)
+points(est$cv3, col = "blue", lty = 4, type = "p", pch = "£", cex = 1.3)
 
 abline(0,0)
 abline(a=0.03, b=0.0,col="blue")
@@ -40,13 +40,13 @@ legend("topleft",
 
 # title("Performance in terms of CV on target variable",cex.main=1.5)
 
-maxi = (max(c(est$cv1),(est$cv2c),(est$cv3a)))
-plot(est$cv1, col = "red", lty = 4, type = "p", pch = "&", cex = 1,cex.lab = 1.3,
+maxi = (max(c(est$cv1),(est$cv2a),(est$cv3a))) + 0.01
+plot(est$cv1, col = "red", lty = 4, type = "p", pch = "&", cex = 1.3,cex.lab = 1.3,
      xlab = "Heteroscedasticity", 
      ylab = "Equalized CV",
      ylim = c(0,maxi+0.01), axes = F)
-points(est$cv2c, col = "black", lty = 4, type = "p", pch = "$", cex = 1)
-points(est$cv3a, col = "blue", lty = 4, type = "p", pch = "£", cex = 1)
+points(est$cv2a, col = "black", lty = 4, type = "p", pch = "$", cex = 1.3)
+points(est$cv3a, col = "blue", lty = 4, type = "p", pch = "£", cex = 1.3)
 
 abline(0,0)
 abline(a=0.03, b=0.0,col="blue")
