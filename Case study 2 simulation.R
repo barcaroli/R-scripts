@@ -183,12 +183,10 @@ simula <- function(itera,
     iter = 50,
     pops = 10,
     nStrata = 5,
-    fitting = summary(lm_pred)$r.squared,
-    # fitting = summary(lm_1)$r.squared, 
+    # fitting = summary(lm_pred)$r.squared,
+    fitting = summary(lm_1)$r.squared, 
     range = fit.vgm$var_model$range[2],
     kappa = 1,
-    # gamma = gamma_sigma_2[1],
-    gamma = 0,
     writeFiles = FALSE,
     showPlot = TRUE,
     parallel = FALSE
@@ -382,4 +380,4 @@ for (i in (1:nrow(iters))) {
   res$range3[i] <- results$range3 
   res$cv3a[i] <- as.numeric(results$cv3a)
 }
-write.table(res,"simul_results_gamma_4_var_eps_2000_4.csv",row.names=F,col.names=T,dec=".",quote=F,sep=";")
+write.table(res,"simul_results.csv",row.names=F,col.names=T,dec=".",quote=F,sep=";")
