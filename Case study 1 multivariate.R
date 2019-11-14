@@ -24,84 +24,134 @@ meuse.grid <- as(meuse.grid, "SpatialPixelsDataFrame")
 # Cadmium
 v <- variogram(cadmium ~ dist + soil, data=meuse, cutoff=3000, width=3000/30)
 plot(v)
-fit.vgm = autofitVariogram(cadmium ~ dist + soil, meuse, 
+fit.vgm.cadmium = autofitVariogram(cadmium ~ dist + soil, meuse, 
                            model = c("Sph","Exp"))
-plot(v, fit.vgm$var_model)
-fit.vgm$var_model
+plot(v, fit.vgm.cadmium$var_model)
+fit.vgm.cadmium$var_model
 # model    psill    range
 # 1   Nug 2.821884   0.0000
 # 2   Exp 5.121428 240.6374
 
+g <- NULL
+g <- gstat(g,"cadmium", cadmium ~ dist + soil, meuse)
+g
+vm <- variogram(g)
+vm.fit <- fit.lmc(vm, g, vgm(psill=fit.vgm.cadmium$var_model$psill[2], 
+                             model=fit.vgm.cadmium$var_model$model[2], 
+                             range=fit.vgm.cadmium$var_model$range[2], 
+                             nugget=fit.vgm.cadmium$var_model$psill[1]))
+# Prediction on the whole grid
+preds.cadmium <- predict(vm.fit, meuse.grid)
+names(preds.cadmium)
+
 # Copper
 v <- variogram(copper ~ dist + soil, data=meuse, cutoff=3000, width=3000/30)
 plot(v)
-fit.vgm = autofitVariogram(copper ~ dist + soil, meuse,  
+fit.vgm.copper = autofitVariogram(copper ~ dist + soil, meuse,  
                            model = c("Sph","Exp"))
-plot(v, fit.vgm$var_model)
-fit.vgm$var_model
+plot(v, fit.vgm.copper$var_model)
+fit.vgm.copper$var_model
 # model    psill   range
 # 1   Nug   0.0000  0.0000
 # 2   Exp 339.6246 98.4095
 
+g <- NULL
+g <- gstat(g,"copper", copper ~ dist + soil, meuse)
+g
+vm <- variogram(g)
+vm.fit <- fit.lmc(vm, g, vgm(psill=fit.vgm.copper$var_model$psill[2], 
+                             model=fit.vgm.copper$var_model$model[2], 
+                             range=fit.vgm.copper$var_model$range[2], 
+                             nugget=fit.vgm.copper$var_model$psill[1]))
+# Prediction on the whole grid
+preds.copper <- predict(vm.fit, meuse.grid)
+names(preds.copper)
+
 # Lead
 v <- variogram(lead ~ dist + soil, data=meuse, cutoff=3000, width=3000/30)
 plot(v)
-fit.vgm = autofitVariogram(lead ~ dist + soil, meuse,   
+fit.vgm.lead = autofitVariogram(lead ~ dist + soil, meuse,   
                            model = c("Sph","Exp"))
-plot(v, fit.vgm$var_model)
-fit.vgm$var_model
+plot(v, fit.vgm.lead$var_model)
+fit.vgm.lead$var_model
 # model    psill    range
 # 1   Nug 3738.507    0.000
 # 2   Sph 6243.891 1020.692
 
+g <- NULL
+g <- gstat(g,"lead", lead ~ dist + soil, meuse)
+g
+vm <- variogram(g)
+vm.fit <- fit.lmc(vm, g, vgm(psill=fit.vgm.lead$var_model$psill[2], 
+                             model=fit.vgm.lead$var_model$model[2], 
+                             range=fit.vgm.lead$var_model$range[2], 
+                             nugget=fit.vgm.lead$var_model$psill[1]))
+# Prediction on the whole grid
+preds.lead <- predict(vm.fit, meuse.grid)
+names(preds.lead)
+
 # Zinc
 v <- variogram(zinc ~ dist + soil, data=meuse, cutoff=3000, width=3000/30)
 plot(v)
-fit.vgm = autofitVariogram(zinc ~ dist + soil, meuse,   
+fit.vgm.zinc = autofitVariogram(zinc ~ dist + soil, meuse,   
                            model = c("Sph","Exp"))
-plot(v, fit.vgm$var_model)
-fit.vgm$var_model
+plot(v, fit.vgm.zinc$var_model)
+fit.vgm.zinc$var_model
 # model    psill    range
 # 1   Nug 25328.92   0.0000
 # 2   Exp 67450.62 400.5704
 
-# multivariate case:cadmium, copper, lead, zinc as target variables
 g <- NULL
-g <- gstat(NULL, "Cd", cadmium ~ dist + soil, meuse)
-g <- gstat(g, "Cu", copper ~ dist + soil, meuse)
-g <- gstat(g, "Pb", lead ~ dist + soil, meuse)
-g <- gstat(g, "Zn", zinc ~ dist + soil, meuse)
+g <- gstat(g,"zinc", zinc ~ dist + soil, meuse)
+g
 vm <- variogram(g)
-# Using "Sph" because "Exp" does not work
-vm.fit <- fit.lmc(vm, g, vgm(psill=1, model=c("Sph"), range=800, nugget=1))
-vm.fit
-plot(vm, vm.fit)
-preds <- predict(vm.fit, meuse.grid)
-names(preds)
-# [1] "Cd.pred"   "Cd.var"    "Cu.pred"   "Cu.var"    "Pb.pred"  
-# [6] "Pb.var"    "Zn.pred"   "Zn.var"    "cov.Cd.Cu" "cov.Cd.Pb"
-# [11] "cov.Cu.Pb" "cov.Cd.Zn" "cov.Cu.Zn" "cov.Pb.Zn"
+vm.fit <- fit.lmc(vm, g, vgm(psill=fit.vgm.zinc$var_model$psill[2], 
+                             model=fit.vgm.zinc$var_model$model[2], 
+                             range=fit.vgm.zinc$var_model$range[2], 
+                             nugget=fit.vgm.zinc$var_model$psill[1]))
+# Prediction on the whole grid
+preds.zinc <- predict(vm.fit, meuse.grid)
+names(preds.zinc)
 
-preds$Cd.pred <- ifelse(preds$Cd.pred < 0,0,preds$Cd.pred)
-preds$Cu.pred <- ifelse(preds$Cu.pred < 0,0,preds$Cu.pred)
-preds$Pb.pred <- ifelse(preds$Pb.pred < 0,0,preds$Pb.pred)
-preds$Zn.pred <- ifelse(preds$Zn.pred < 0,0,preds$Zn.pred)
-summary(preds)
+
+# multivariate case:cadmium, copper, lead, zinc as target variables
+# g <- NULL
+# g <- gstat(NULL, "Cd", cadmium ~ dist + soil, meuse)
+# g <- gstat(g, "Cu", copper ~ dist + soil, meuse)
+# g <- gstat(g, "Pb", lead ~ dist + soil, meuse)
+# g <- gstat(g, "Zn", zinc ~ dist + soil, meuse)
+# vm <- variogram(g)
+# # Using "Sph" because "Exp" does not work
+# vm.fit <- fit.lmc(vm, g, vgm(psill=1, model=c("Sph"), range=800, nugget=1))
+# vm.fit
+# plot(vm, vm.fit)
+# preds <- predict(vm.fit, meuse.grid)
+# names(preds)
+# # [1] "Cd.pred"   "Cd.var"    "Cu.pred"   "Cu.var"    "Pb.pred"  
+# # [6] "Pb.var"    "Zn.pred"   "Zn.var"    "cov.Cd.Cu" "cov.Cd.Pb"
+# # [11] "cov.Cu.Pb" "cov.Cd.Zn" "cov.Cu.Zn" "cov.Pb.Zn"
+
+preds.cadmium$cadmium.pred <- ifelse(preds.cadmium$cadmium.pred < 0,0,preds.cadmium$cadmium.pred)
+preds.copper$copper.pred <- ifelse(preds.copper$copper.pred < 0,0,preds.copper$copper.pred)
+preds.lead$lead.pred <- ifelse(preds.lead$lead.pred < 0,0,preds.lead$lead.pred)
+preds.zinc$zinc.pred <- ifelse(preds.zinc$zinc.pred < 0,0,preds.zinc$zinc.pred)
+
 # Optimization with SamplingStrata
 
 df <- NULL
-df$Cd.pred <- preds@data$Cd.pred
-df$Cd.var <- preds@data$Cd.var
-df$Cu.pred <- preds@data$Cu.pred
-df$Cu.var <- preds@data$Cu.var
-df$Pb.pred <- preds@data$Pb.pred
-df$Pb.var <- preds@data$Pb.var
-df$Zn.pred <- preds@data$Zn.pred
-df$Zn.var <- preds@data$Zn.var
+df$cadmium.pred <- preds.cadmium$cadmium.pred
+df$cadmium.var <- preds.cadmium$cadmium.var
+df$copper.pred <- preds.copper$copper.pred
+df$copper.var <- preds.copper$copper.var
+df$lead.pred <- preds.lead$lead.pred
+df$lead.var <- preds.lead$lead.var
+df$zinc.pred <- preds.zinc$zinc.pred
+df$zinc.var <- preds.zinc$zinc.var
 df$dom <- meuse.grid@data$soil
 df$dom1 <- 1
 df <- as.data.frame(df)
 df$id <- meuse.grid$id
+head(df)
 
 cv <- as.data.frame(list(DOM=rep("DOM1",1),
                          CV1=rep(0.05,1),
@@ -115,29 +165,32 @@ cv
 frame <- buildFrameDF(df=df,
                       id="id",
                       X=c(
-                        "Cd.pred",
-                        "Cu.pred",
-                        "Pb.pred",
-                        "Zn.pred"),
+                        "cadmium.pred",
+                        "copper.pred",
+                        "lead.pred",
+                        "zinc.pred"),
                       Y=c(
-                        "Cd.pred",
-                        "Cu.pred",
-                        "Pb.pred",
-                        "Zn.pred"),
+                        "cadmium.pred",
+                        "copper.pred",
+                        "lead.pred",
+                        "zinc.pred"),
                       domainvalue = "dom1")
 frame$lon <- meuse.grid$x
 frame$lat <- meuse.grid$y
-frame$var1 <- df$Cd.var
-frame$var2 <- df$Cu.var
-frame$var3 <- df$Pb.var
-frame$var4 <- df$Zn.var
+frame$var1 <- df$cadmium.var
+frame$var2 <- df$copper.var
+frame$var3 <- df$lead.var
+frame$var4 <- df$zinc.var
 
+range <- c(fit.vgm.cadmium$var_model$range[2],
+           fit.vgm.copper$var_model$range[2],
+           fit.vgm.lead$var_model$range[2],
+           fit.vgm.zinc$var_model$range[2])
 
 kmeans <- KmeansSolutionSpatial(frame,
                                 fitting=1,
-                                range=800,
+                                range=range,
                                 kappa=1,
-                                gamma=0,
                                 errors=cv,
                                 maxclusters = 10)
 # The difference in sample size after nStrata = 5 is negligible
@@ -153,11 +206,10 @@ solution <- optimizeStrataSpatial (
   framesamp=frame,
   iter = 50,
   pops = 10,
-  nStrata = 5,
+  nStrata = 9,
   fitting = 1,
-  range = 800,
+  range = range,
   kappa = 1,
-  gamma = 0,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
@@ -171,8 +223,8 @@ ss
 # sink()
 sum(ss$Allocation)
 framenew <- solution$framenew
-framenew$lon <- meuse.grid@coords[,1]
-framenew$lat <- meuse.grid@coords[,2]
+# framenew$lon <- meuse.grid@coords[,1]
+# framenew$lat <- meuse.grid@coords[,2]
 # framenew$strat <- paste(framenew$DOMAINVALUE,framenew$LABEL,sep="")
 table(framenew$LABEL)
 
