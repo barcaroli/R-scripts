@@ -55,12 +55,9 @@ fit.vgm$var_model
 # model    psill    range
 # 1   Nug 1524.895   0.0000
 # 2   Exp 8275.431 458.3303
-<<<<<<< HEAD
 g <- gstat(NULL,"Lead", lead ~ dist + soil, meuse)
-=======
 g <- NULL
 g <- gstat(g,"Lead", lead ~ dist + soil, meuse)
->>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
 g
 vm <- variogram(g)
 vm.fit <- fit.lmc(vm, g, vgm(psill=fit.vgm$var_model$psill[2], 
@@ -83,11 +80,8 @@ df$Lead.var <- preds@data$Lead.var
 df$dom1 <- 1
 df <- as.data.frame(df)
 df$id <- meuse.grid$id
-<<<<<<< HEAD
 df$lon <- meuse.grid$x
 df$lat <- meuse.grid$y
-=======
->>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
 head(df)
 
 
@@ -95,7 +89,6 @@ head(df)
 #------------------------
 # Solution SamplingStrata
 #------------------------
-<<<<<<< HEAD
 frame <- buildFrameSpatial(df=df, 
                   id="id", 
                   X=c("Lead.pred"), 
@@ -112,7 +105,6 @@ frame <- buildFrameSpatial(df=df,
 # frame$var1 <- df$Lead.var
 # frame$lon <- meuse.grid$x
 # frame$lat <- meuse.grid$y
-=======
 frame <- buildFrameDF(df=df,
                       id="id",
                       X=c("Lead.pred"),
@@ -121,7 +113,6 @@ frame <- buildFrameDF(df=df,
 frame$var1 <- df$Lead.var
 frame$lon <- meuse.grid$x
 frame$lat <- meuse.grid$y
->>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
 
 cv <- as.data.frame(list(DOM=rep("DOM1",1),
                          CV1=rep(0.05,1),

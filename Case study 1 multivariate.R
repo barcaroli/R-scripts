@@ -151,12 +151,9 @@ df$lead.pred <- preds.lead$lead.pred
 df$lead.var <- preds.lead$lead.var
 df$zinc.pred <- preds.zinc$zinc.pred
 df$zinc.var <- preds.zinc$zinc.var
-<<<<<<< HEAD
 df$lon <- meuse.grid$x
 df$lat <- meuse.grid$y
-=======
 # df$dom <- meuse.grid@data$soil
->>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
 df$dom <- 1
 df <- as.data.frame(df)
 df$id <- meuse.grid$id
@@ -179,7 +176,6 @@ cv <- as.data.frame(list(DOM=rep("DOM1",1),
 cv
 # DOM  CV1  CV2  CV3  CV4 domainvalue
 # 1 DOM1 0.05 0.05 0.05 0.05           1
-<<<<<<< HEAD
 frame <- buildFrameSpatial(df=df, 
                            id="id", 
                            X=c("cadmium.pred","copper.pred","lead.pred","zinc.pred"),
@@ -188,7 +184,6 @@ frame <- buildFrameSpatial(df=df,
                            lon="lon", 
                            lat="lat", 
                            domainvalue="dom")
-=======
 frame <- buildFrameDF(df=df,
                       id="id",
                       X=c(
@@ -208,8 +203,6 @@ frame$var1 <- df$cadmium.var
 frame$var2 <- df$copper.var
 frame$var3 <- df$lead.var
 frame$var4 <- df$zinc.var
->>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
-
 range <- c(fit.vgm.cadmium$var_model$range[2],
            fit.vgm.copper$var_model$range[2],
            fit.vgm.lead$var_model$range[2],
