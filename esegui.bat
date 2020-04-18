@@ -1,0 +1,1 @@
+R CMD BATCH "Case study 2 simulation.R"

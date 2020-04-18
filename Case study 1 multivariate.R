@@ -135,6 +135,10 @@ preds.cadmium$cadmium.pred <- ifelse(preds.cadmium$cadmium.pred < 0,0,preds.cadm
 preds.copper$copper.pred <- ifelse(preds.copper$copper.pred < 0,0,preds.copper$copper.pred)
 preds.lead$lead.pred <- ifelse(preds.lead$lead.pred < 0,0,preds.lead$lead.pred)
 preds.zinc$zinc.pred <- ifelse(preds.zinc$zinc.pred < 0,0,preds.zinc$zinc.pred)
+preds.cadmium$cadmium.var <- ifelse(preds.cadmium$cadmium.var < 0,0,preds.cadmium$cadmium.var)
+preds.copper$copper.var <- ifelse(preds.copper$copper.var < 0,0,preds.copper$copper.var)
+preds.lead$lead.var <- ifelse(preds.lead$lead.var < 0,0,preds.lead$lead.var)
+preds.zinc$zinc.var <- ifelse(preds.zinc$zinc.var < 0,0,preds.zinc$zinc.var)
 
 # Optimization with SamplingStrata
 
@@ -147,11 +151,20 @@ df$lead.pred <- preds.lead$lead.pred
 df$lead.var <- preds.lead$lead.var
 df$zinc.pred <- preds.zinc$zinc.pred
 df$zinc.var <- preds.zinc$zinc.var
-df$dom <- meuse.grid@data$soil
-df$dom1 <- 1
+df$lon <- meuse.grid$x
+df$lat <- meuse.grid$y
+df$dom <- 1
 df <- as.data.frame(df)
 df$id <- meuse.grid$id
+
 head(df)
+# cadmium.pred cadmium.var copper.pred copper.var lead.pred lead.var zinc.pred zinc.var dom id
+# 7.917987    7.007012    65.64426   331.6897  265.9674 7043.944  898.3354 67350.56   1  1
+# 8.308433    6.482721    69.01170   308.4855  267.2160 6403.047  918.6911 59349.98   1  2
+# 7.898212    6.661317    66.93037   319.6262  260.5370 6574.794  877.8272 61860.84   1  3
+# 7.281627    6.828875    63.61440   326.8032  248.9653 6770.737  818.0511 64442.07   1  4
+# 8.824362    5.748581    74.34104   245.6440  269.2219 5744.181  949.7147 49761.03   1  5
+# 8.333077    6.009188    71.27280   278.8897  261.5889 5909.198  899.6006 52859.14   1  6
 
 cv <- as.data.frame(list(DOM=rep("DOM1",1),
                          CV1=rep(0.05,1),
@@ -162,25 +175,14 @@ cv <- as.data.frame(list(DOM=rep("DOM1",1),
 cv
 # DOM  CV1  CV2  CV3  CV4 domainvalue
 # 1 DOM1 0.05 0.05 0.05 0.05           1
-frame <- buildFrameDF(df=df,
-                      id="id",
-                      X=c(
-                        "cadmium.pred",
-                        "copper.pred",
-                        "lead.pred",
-                        "zinc.pred"),
-                      Y=c(
-                        "cadmium.pred",
-                        "copper.pred",
-                        "lead.pred",
-                        "zinc.pred"),
-                      domainvalue = "dom1")
-frame$lon <- meuse.grid$x
-frame$lat <- meuse.grid$y
-frame$var1 <- df$cadmium.var
-frame$var2 <- df$copper.var
-frame$var3 <- df$lead.var
-frame$var4 <- df$zinc.var
+frame <- buildFrameSpatial(df=df, 
+                           id="id", 
+                           X=c("cadmium.pred","copper.pred","lead.pred","zinc.pred"),
+                           Y=c("cadmium.pred","copper.pred","lead.pred","zinc.pred"),
+                           variance=c("cadmium.var","copper.var","lead.var","zinc.var"), 
+                           lon="lon", 
+                           lat="lat", 
+                           domainvalue="dom")
 
 range <- c(fit.vgm.cadmium$var_model$range[2],
            fit.vgm.copper$var_model$range[2],
@@ -188,7 +190,7 @@ range <- c(fit.vgm.cadmium$var_model$range[2],
            fit.vgm.zinc$var_model$range[2])
 
 kmeans <- KmeansSolutionSpatial(frame,
-                                fitting=1,
+                                fitting=c(1,1,1,1),
                                 range=range,
                                 kappa=1,
                                 errors=cv,
@@ -201,13 +203,14 @@ kmeans <- KmeansSolutionSpatial(frame,
 #---------------------------------------------------
 
 set.seed(4321)
-solution <- optimizeStrataSpatial (
+solution <- optimStrata (
+  method="spatial",
   errors=cv, 
   framesamp=frame,
   iter = 50,
   pops = 10,
-  nStrata = 9,
-  fitting = 1,
+  nStrata = 5,
+  fitting = c(1,1,1,1),
   range = range,
   kappa = 1,
   writeFiles = FALSE,
@@ -218,7 +221,7 @@ sum(round(solution$aggr_strata$SOLUZ))
 
 
 ss <- summaryStrata(x=solution$framenew,outstrata=solution$aggr_strata)
-# sink("./output/ssmulti.txt")
+# sink("ssmulti.txt")
 ss
 # sink()
 sum(ss$Allocation)

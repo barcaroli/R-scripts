@@ -1,0 +1,53 @@
+
+ *** Linear model (gamma/sigma =  0.6658275 0.4769536 0.9755426 ) ***
+R squared:  0.625082
+Sample size 404
+Strata structure
+  Domain Stratum Population Allocation SamplingRate Lower_X1 Upper_X1
+1      1       1        689         26     0.037134        0       36
+2      1       2        617         80     0.129195       37      137
+3      1       3        433         92     0.212568      138      248
+4      1       4        421        130     0.308529      250      432
+5      1       5        174         76     0.435309      433     1072
+
+  CV(P1)  CV(ST1)
+     CV1    CV2  dom
+1 0.0094 0.0294 DOM1
+
+ *** Kriging (gamma/sigma =  0.5100489 0.940173 0.9394493 ) ***
+R squared:  0.6351977
+Sample size 330
+Strata structure
+  Domain Stratum Population Allocation SamplingRate  Lower_X1   Upper_X1
+1      1       1        720         40     0.055482  0.000000   4.467005
+2      1       2        530         58     0.110248  4.499187  14.705690
+3      1       3        461         76     0.164561 14.743586  28.964090
+4      1       4        403         88     0.217848 29.014551  49.329983
+5      1       5        220         68     0.308653 49.494981 123.915746
+
+  CV(P1)  CV(ST1)
+     CV1    CV2  dom
+1 0.0106 0.0324 DOM1
+... with the same sample size than Linear Model
+  CV(P1)  CV(ST1)
+     CV1    CV2  dom
+1 0.0093 0.0287 DOM1
+
+ *** Spatial model (gamma/sigma =  0.6132473 0.6257764 0.965437 ) ***
+R squared:  0.6251384
+Sample size 396
+Strata structure
+  Domain Stratum Population Allocation SamplingRate Lower_X1 Upper_X1
+1      1       1        689         30     0.043240        0       36
+2      1       2        617         82     0.133649       37      137
+3      1       3        433         89     0.204813      138      248
+4      1       4        421        123     0.292334      250      432
+5      1       5        174         72     0.412546      433     1072
+
+  CV(P1)  CV(ST1)
+     CV1    CV2  dom
+1 0.0094 0.0302 DOM1
+... with the same sample size than Linear Model
+  CV(P1)  CV(ST1)
+     CV1    CV2  dom
+1 0.0093 0.0292 DOM1

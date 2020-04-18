@@ -36,26 +36,26 @@ coordinates(meuse.grid)<-c("x","y")
 # png("./images/lead.png")
 spplot(meuse,"lead",do.log=F,ylab="Lead localisation and concentration")
 # dev.off()
-spplot(meuse.grid,"soil")
-levels(meuse.grid$soil)
-bubble(meuse,"lead",do.log=F,key.space="bottom")
-meuse.grid <- as(meuse.grid, "SpatialPixelsDataFrame")
-meuse.grid@bbox
-ha <- (meuse.grid@bbox[1,2]-meuse.grid@bbox[1,1]) * (meuse.grid@bbox[2,2]-meuse.grid@bbox[2,1]) / 20000 
-ha
+# spplot(meuse.grid,"soil")
+# levels(meuse.grid$soil)
+# bubble(meuse,"lead",do.log=F,key.space="bottom")
+# meuse.grid <- as(meuse.grid, "SpatialPixelsDataFrame")
+# meuse.grid@bbox
+# ha <- (meuse.grid@bbox[1,2]-meuse.grid@bbox[1,1]) * (meuse.grid@bbox[2,2]-meuse.grid@bbox[2,1]) / 20000 
+# ha
 #################
 # kriging
 #################
 
 v <- variogram(lead ~ dist + soil, data=meuse)
-fit.vgm <- autofitVariogram(lead ~ elev + soil, meuse, model = "Exp")
+fit.vgm <- autofitVariogram(lead ~ elev + soil, meuse, 
+                            model = c("Exp"))
 plot(v, fit.vgm$var_model)
 fit.vgm$var_model
 # model    psill    range
 # 1   Nug 1524.895   0.0000
 # 2   Exp 8275.431 458.3303
-g <- NULL
-g <- gstat(g,"Pb", lead ~ dist + soil, meuse)
+g <- gstat(NULL,"Lead", lead ~ dist + soil, meuse)
 g
 vm <- variogram(g)
 vm.fit <- fit.lmc(vm, g, vgm(psill=fit.vgm$var_model$psill[2], 
@@ -68,30 +68,41 @@ vm.fit <- fit.lmc(vm, g, vgm(psill=fit.vgm$var_model$psill[2],
 # Prediction on the whole grid
 preds <- predict(vm.fit, meuse.grid)
 names(preds)
-# [1] "Pb.pred" "Pb.var"
-summary(preds$Pb.pred)
-preds$Pb.pred <- ifelse(preds$Pb.pred < 0,0,preds$Pb.pred)
-summary(preds$Pb.pred)
+# [1] [1] "Lead.pred" "Lead.var"
+summary(preds$Lead.pred)
+preds$Lead.pred <- ifelse(preds$Lead.pred < 0,0,preds$Lead.pred)
+summary(preds$Lead.pred)
 df <- NULL
-df$Pb.pred <- preds@data$Pb.pred
-df$Pb.var <- preds@data$Pb.var
+df$Lead.pred <- preds@data$Lead.pred
+df$Lead.var <- preds@data$Lead.var
 df$dom1 <- 1
 df <- as.data.frame(df)
 df$id <- meuse.grid$id
+df$lon <- meuse.grid$x
+df$lat <- meuse.grid$y
+head(df)
 
 
 
 #------------------------
 # Solution SamplingStrata
 #------------------------
-frame <- buildFrameDF(df=df,
-                      id="id",
-                      X=c("Pb.pred"),
-                      Y=c("Pb.pred"),
-                      domainvalue = "dom1")
-frame$var1 <- df$Pb.var
-frame$lon <- meuse.grid$x
-frame$lat <- meuse.grid$y
+frame <- buildFrameSpatial(df=df, 
+                  id="id", 
+                  X=c("Lead.pred"), 
+                  Y=c("Lead.pred"), 
+                  variance=c("Lead.var"), 
+                  lon="lon", 
+                  lat="lat", 
+                  domainvalue="dom1")
+# frame <- buildFrameDF(df=df,
+#                       id="id",
+#                       X=c("Lead.pred"),
+#                       Y=c("Lead.pred"),
+#                       domainvalue = "dom1")
+# frame$var1 <- df$Lead.var
+# frame$lon <- meuse.grid$x
+# frame$lat <- meuse.grid$y
 
 cv <- as.data.frame(list(DOM=rep("DOM1",1),
                          CV1=rep(0.05,1),
@@ -101,7 +112,8 @@ cv
 # 1 DOM1 0.05           1
 
 set.seed(1234)
-solution <- optimizeStrataSpatial (
+solution <- optimStrata (
+  method="spatial",
   errors=cv, 
   framesamp=frame,
   iter = 50,
@@ -110,7 +122,6 @@ solution <- optimizeStrataSpatial (
   fitting = 1,
   range = fit.vgm$var_model$range[2],
   kappa = 1,
-  gamma = 0,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
@@ -150,9 +161,6 @@ spplot(frameres3,c("LABEL"), col.regions=bpy.colors(5))
 # (2) Modify the complete path of ./ospats in main.jl at line 9
 #--------------------------------------------------------------
 setwd("./ospats")
-# devtools::install_github("Non-Contradiction/JuliaCall")
-library(JuliaCall)
-julia <- julia_setup()
 #-------------------------------------
 add_variance <- 0
 file <- NULL
@@ -164,9 +172,16 @@ file$var <- frame$var1+add_variance
 file <- as.data.frame(file)
 write.table(file,"meuse.txt",row.names=F,col.names=F,sep=",",quote=F)
 #--------------------------------------------------------
-julia_console()
-include("main.jl")
-exit
+# devtools::install_github("Non-Contradiction/JuliaCall")
+# library(JuliaCall)
+# julia <- julia_setup()
+# julia_console()
+# include("main.jl")
+# exit
+############################################
+### If the above 5 lines do not work then 
+### execute "main.jl" in Julia 0.6.4 console
+############################################
 #--------------------------------------------------------
 # fr <- read.table("stratification",sep=",",header=TRUE,dec=".",stringsAsFactors = FALSE)
 # colnames(fr) <- c("lon","lat","stratum")
@@ -180,10 +195,9 @@ strata <- aggrStrataSpatial(dataset=frameone,
                             range = fit.vgm$var_model$range[2], 
                             vett = frameone$stratum,
                             kappa = 1,
-                            gamma = 0,
                             dominio = 1)
 strata$allocation <- bethel(strata,cv)
-# sink("./output/ospats_strata.txt")
+# sink("ospats_strata.txt")
 strata
 # stratum    N COST CENS DOM1        M1       S1 allocation
 # 1       1  146    1    0    1 338.05849 77.96705          6
@@ -191,7 +205,7 @@ strata
 # 3       3  534    1    0    1 231.61554 74.00451         21
 # 4       4  589    1    0    1 163.32563 71.54368         22
 # 5       5 1030    1    0    1  52.98693 70.85171         38
-
+# sink()
 # Plot
 spfr <- SpatialPointsDataFrame(data=frameone, coords=cbind(frameone$lon,frameone$lat) )
 spfr2 <- SpatialPixelsDataFrame(points=spfr[c("lon","lat")], data=fr)

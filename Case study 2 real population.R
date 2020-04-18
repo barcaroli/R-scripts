@@ -61,6 +61,8 @@ df <- NULL
 df$id <- Comune_BO_geo@data$SEZ
 df$P1 <- Comune_BO_geo@data$P1
 df$ST1 <- Comune_BO_geo@data$ST1
+df$lon <- cc@coords[,1]
+df$lat <- cc@coords[,2]
 df <- as.data.frame(df)
 df$dom <- 1
 
@@ -95,7 +97,8 @@ frame <- buildFrameDF(df=df,
                       domainvalue = "dom")
 
 set.seed(1234)
-solution0 <- optimizeStrata2 (
+solution0 <- optimStrata (
+  method="continuous",
   errors=cv, 
   framesamp=frame,
   model=NULL,
@@ -146,6 +149,17 @@ frame$W1 <- Comune_BO_geo$P1W
 
 lm_1 <- lm(ST1 ~ P1,data=spoints_samp)
 summary(lm_1)
+# Coefficients:
+#   Estimate Std. Error t value            Pr(>|t|)    
+# (Intercept) -0.053350   0.982107  -0.054               0.957    
+# P1           0.118006   0.004238  27.844 <0.0000000000000002 ***
+#   ---
+#   Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+# 
+# Residual standard error: 15.41 on 465 degrees of freedom
+# Multiple R-squared:  0.6251,	Adjusted R-squared:  0.6243 
+
+
 
 # plot(lm_1)
 
@@ -158,6 +172,8 @@ gamma_sigma_1 <- computeGamma(e=summary(lm_1)$residuals,
                               x=spoints_samp@data$P1,
                               nbins=6)
 gamma_sigma_1
+# gamma     sigma  r.square 
+# 0.6146480 0.6210120 0.9662238 
 
 model <- NULL
 model$type[1] <- "linear"
@@ -166,9 +182,12 @@ model$gamma[1] <- gamma_sigma_1[1]
 model$sig2[1] <- gamma_sigma_1[2]^2
 model <- as.data.frame(model)
 model
+# type      beta    gamma      sig2
+# 1 linear 0.1180064 0.614648 0.3856559
 
 set.seed(1234)
-solution1 <- optimizeStrata2 (
+solution1 <- optimStrata (
+  method="continuous",
   errors=cv, 
   framesamp=frame,
   model=model,
@@ -192,6 +211,8 @@ unlink("./simulation",recursive=TRUE)
 val1 <- evalSolution(framenew,outstrata,nsampl = 1000,progress=F)
 val1$rel_bias
 val1$coeff_var 
+# CV1    CV2  dom
+# 1 0.0094 0.029 DOM1
 
 # Plot
 colnames(framenew)[1] <- "SEZ"
@@ -218,6 +239,9 @@ fit.vgm = autofitVariogram(ST1 ~ P1, spoints_samp,
                            
 plot(v, fit.vgm$var_model)
 fit.vgm$var_model
+# model    psill    range kappa
+# 1   Nug 114.3363    0.000   0.0
+# 2   Mat 135.2903 1232.796   0.2
 
 # prediction with gstat
 
@@ -230,7 +254,7 @@ v.fit <- fit.lmc(v, g,
                      nugget=fit.vgm$var_model$psill[1]))
 preds <- predict(v.fit, Comune_BO_geo)
 names(preds)
-plot(preds$v.pred,preds$v.var)
+# plot(preds$v.pred,preds$v.var)
 
 # Add predicted values and residuals variance to the frame
 frame1 <- frame
@@ -238,8 +262,17 @@ frame1$Y1 <- preds$v.pred
 frame1$Y1 <- ifelse(frame1$Y1 < 0, 0, frame1$Y1)
 frame1$X1 <- frame1$Y1
 frame1$var1 <- preds$v.var
-
+frame1$lon <- cc@coords[,1]
+frame1$lat <- cc@coords[,2]
 head(frame1)
+
+# preds = krige(ST1 ~ P1, spoints_samp, Comune_BO_geo, model = fit.vgm$var_model)
+# frame1 <- frame
+# frame1$Y1 <- preds$var1.pred
+# frame1$Y1 <- ifelse(frame1$Y1 < 0, 0, frame1$Y1)
+# frame1$X1 <- frame1$Y1
+# frame1$var1 <- preds$var1.var
+# head(frame1)
 
 # Compute fitting
 plot(frame1$Y1[camp],(frame$Y1[camp]-frame$ST1[camp]))
@@ -247,99 +280,51 @@ lm_pred <- lm(ST1 ~ Y1,data=frame1)
 summary(lm_pred)
 summary(lm_pred)$sigma^2
 summary(lm_pred)$r.squared
+# [1] 0.6351977
 
 # Compute heteroscedasticity index
-gamma_sigma_2 <- computeGamma(e=(frame1$Y1[camp]-frame1$ST1[camp]),
+gamma_sigma_2 <- computeGamma(e=lm_pred$residuals[camp],
+# gamma_sigma_2 <- computeGamma(e=(frame1$Y1[camp]-frame1$ST1[camp]),
                               x=frame1$P1[camp],
-                              nbins=20)
+                              nbins=6)
 gamma_sigma_2
-# [1] 0.5571396 0.7981380
+# gamma     sigma  r.square 
+# 0.5100489 0.9401730 0.9394493 
 
-head(frame1)
+# head(frame1)
 
-# frame1$var1 <- gamma_sigma_2[2]^2 * (frame1$Y1^(2*gamma_sigma_2[1]))
-# summary(frame1$var1)
-
-# WITH GAMMA ---------------------------------------------------
-# set.seed(1234)
-# solution2 <- optimizeStrataSpatial (
-#   errors=cv, 
-#   framesamp=frame1,
-#   iter = 75,
-#   pops = 10,
-#   nStrata = 5,
-#   fitting = summary(lm_pred)$r.squared,
-#   range = fit.vgm$var_model$range[2],
-#   kappa = 1,
-#   gamma = gamma_sigma_2[1],
-#   # gamma = 0,
-#   writeFiles = FALSE,
-#   showPlot = TRUE,
-#   parallel = FALSE
-# )
-# sum(solution2$aggr_strata$SOLUZ)
-# framenew <- solution2$framenew
-# outstrata <- solution2$aggr_strata
-# outstrata
-# s2 <- summaryStrata(framenew,outstrata)
-# s2
-# framenew$Y2 <- framenew$ST1
-# expected_CV(outstrata)
-# unlink("./simulation",recursive=TRUE)
-# val2 <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
-# val2$rel_bias
-# val2$coeff_var 
-# 
-# # Comparison with same sample size than Solution 1
-# size <- sum(solution1$aggr_strata$SOLUZ)
-# newstrata <- adjustSize(size,outstrata)
-# sum(newstrata$SOLUZ)
-# newstrata
-# unlink("./simulation",recursive=TRUE)
-# val2a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
-# val2a$rel_bias
-# val2a$coeff_var 
-# 
-# # Plot
-# colnames(framenew)[1] <- "SEZ"
-# bologna <- Comune_BO_geo
-# bologna@data <- merge(bologna@data,framenew[,c("SEZ","LABEL")])
-# bologna@data$LABEL <- as.factor(bologna@data$LABEL)
-# spplot(bologna,"LABEL")
-
-# WITHOUT GAMMA ---------------------------------------------------
-frame1$var2 <- NULL
+# frame1$var2 <- NULL
 frame1$var1 <- gamma_sigma_2[2]^2 * frame1$P1 ^ (gamma_sigma_2[1] * 2)
 head(frame1)
 set.seed(4321)
-solution2b <- optimizeStrataSpatial (
+solution2 <- optimStrata (
+  method="spatial",
   errors=cv, 
   framesamp=frame1,
-  iter = 75,
+  iter = 50,
   pops = 10,
   nStrata = 5,
   fitting = summary(lm_pred)$r.squared,
   # fitting = summary(lm_1)$r.squared, 
   range = fit.vgm$var_model$range[2],
   kappa = 1,
-  # gamma = gamma_sigma_2[1],
-  gamma = 0,
   writeFiles = FALSE,
   showPlot = TRUE,
   parallel = FALSE
 )
-sum(round(solution2b$aggr_strata$SOLUZ))
-framenew <- solution2b$framenew
-outstrata <- solution2b$aggr_strata
+sum(round(solution2$aggr_strata$SOLUZ))
+framenew <- solution2$framenew
+outstrata <- solution2$aggr_strata
 outstrata
-s2b <- summaryStrata(framenew,outstrata)
-s2b
+s2 <- summaryStrata(framenew,outstrata)
+s2
 framenew$Y2 <- framenew$ST1
 expected_CV(outstrata)
 unlink("./simulation",recursive=TRUE)
-val2b <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
-val2b$rel_bias
-val2b$coeff_var 
+val2 <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
+val2$coeff_var 
+# CV1    CV2  dom
+# 1 0.0105 0.0321 DOM1
 
 # Comparison with same sample size of Solution 1
 size <- sum(solution1$aggr_strata$SOLUZ)
@@ -347,9 +332,24 @@ newstrata <- adjustSize(size,outstrata)
 sum(newstrata$SOLUZ)
 newstrata
 unlink("./simulation",recursive=TRUE)
-val2c <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
-val2c$coeff_var 
+val2b <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
+val2b$coeff_var 
 
+# Plot
+colnames(framenew)[1] <- "SEZ"
+bologna <- Comune_BO_geo
+bologna@data <- merge(bologna@data,framenew[,c("SEZ","LABEL")])
+bologna@data$LABEL <- as.factor(bologna@data$LABEL)
+spplot(bologna,"LABEL")
+
+s <- selectSample(framenew,outstrata)
+bologna <- merge(bologna,s[,c("SEZ","LABEL","WEIGHTS")],all.x=TRUE)
+head(bologna@data)
+bologna@data$sampled <- as.factor(ifelse(is.na(bologna@data$WEIGHTS),2,1))
+table(bologna@data$sampled)
+spplot(bologna,"sampled")
+
+bologna@data[bologna@data$SEZ==2139,]
 
 ################################################################################################
 # SOLUTION 3 
@@ -357,13 +357,23 @@ val2c$coeff_var
 
 lm_2 <- lm(ST1 ~ P1 + P1W, data=spoints_samp)
 summary(lm_2)
+# Coefficients:
+#   Estimate Std. Error t value            Pr(>|t|)    
+# (Intercept)  0.231107   1.457822   0.159               0.874    
+# P1           0.118487   0.004616  25.667 <0.0000000000000002 ***
+#   P1W         -0.002018   0.007638  -0.264               0.792    
+# Residual standard error: 15.42 on 464 degrees of freedom
+# Multiple R-squared:  0.6251,	Adjusted R-squared:  0.6235 
+
 # plot(lm_2)
 
 # Compute heteroscedasticity index
-gamma_sigma_3 <- computeGamma(e=(frame$ST1[camp] - predict(lm_2,data=frame[camp,])),
+gamma_sigma_3 <- computeGamma(e=lm_2$residuals,
                               x=spoints_samp@data$P1,
                               nbins=6)
 gamma_sigma_3
+# gamma     sigma  r.square 
+# 0.6132473 0.6257764 0.9654370
 # Estimate psill and range on residuals of lm_2
 spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
 spoints_samp@data$res_spatial <- summary(lm_2)$residuals
@@ -373,6 +383,9 @@ plot(v2)
 fit.vgm2 = autofitVariogram(res_spatial  ~ 1, spoints_samp, model = c("Exp","Sph","Mat"))
 plot(v2, fit.vgm2$var_model)
 fit.vgm2$var_model
+# model    psill    range kappa
+# 1   Nug 114.3825    0.000   0.0
+# 2   Mat 135.2430 1232.444   0.2
 # fit.vgm$var_model
 
 # v3 <- variogram(fit_spatial  ~ res_spatial, data=spoints_samp, cutoff=3000, width=3000/30)
@@ -397,9 +410,11 @@ model$gamma[1] <- gamma_sigma_3[1]
 model$fitting[1] <- summary(lm_2)$r.square
 model <- as.data.frame(model)
 model
+# type      beta        beta2      sig2    range     gamma   fitting
+# 1 spatial 0.1184873 -0.002018293 0.3915961 1232.444 0.6132473 0.6251384
 
 set.seed(1234)
-solution3 <- optimizeStrata2 (
+solution3 <- optimStrata (method="continuous",
   errors=cv, 
   framesamp=frame,
   model=model,
@@ -422,6 +437,8 @@ unlink("./simulation",recursive=TRUE)
 val3 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
 val3$rel_bias
 val3$coeff_var 
+# CV1    CV2  dom
+# 1 0.0094 0.0302 DOM1
 
 # Comparison with same sample size of Solution 1
 size <- sum(solution1$aggr_strata$SOLUZ)
@@ -478,14 +495,14 @@ val1$coeff_var
 # cat("\n")
 cat("\n *** Kriging (gamma/sigma = ",gamma_sigma_2,") ***")
 cat("\nR squared: ",summary(lm_pred)$r.squared)
-cat("\nSample size",sum(round(solution2b$aggr_strata$SOLUZ)))
+cat("\nSample size",sum(round(solution2$aggr_strata$SOLUZ)))
 cat("\nStrata structure\n")
-s2b
+s2
 cat("\n  CV(P1)  CV(ST1)\n")
-val2b$coeff_var
+val2$coeff_var
 cat("... with the same sample size than Linear Model")
 cat("\n  CV(P1)  CV(ST1)\n")
-val2c$coeff_var
+val2b$coeff_var
 # cat("\n")
 # cat("\n")
 cat("\n *** Spatial model (gamma/sigma = ",gamma_sigma_3,") ***")

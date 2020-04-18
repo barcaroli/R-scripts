@@ -103,7 +103,8 @@ simula <- function(itera,
   model_linear
 
   set.seed(4321)
-  solution1 <- optimizeStrata2 (
+  solution1 <- optimStrata (
+    method="continuous",
     errors=cv, 
     framesamp=frame,
     model=model_linear,
@@ -177,7 +178,8 @@ simula <- function(itera,
   
   
   set.seed(4321)
-  solution2 <- optimizeStrataSpatial (
+  solution2 <- optimStrata (
+    method="spatial",
     errors=cv, 
     framesamp=frame1,
     iter = 50,
@@ -261,7 +263,8 @@ simula <- function(itera,
   model_spatial
   
   set.seed(1234)
-  solution3 <- optimizeStrata2 (
+  solution3 <- optimStrata (
+    method="continuous",
     errors=cv, 
     framesamp=frame,
     model=model_spatial,

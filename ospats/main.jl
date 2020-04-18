@@ -6,7 +6,8 @@
 
 # Version: 2017-10-28
 # Author: Jaap de Gruijter
-cd("C:\\Users\\Giulio\\Google Drive\\Paper Spatial Sampling\\script per paper\\Case study 1\\ospats")
+#### INSERT here the actual path
+cd("C:\\Users\\Giulio\\Google Drive\\Paper Spatial Sampling\\R-scripts new\\ospats")
 using DataFrames
 include("allocatemr.jl")
 include("ospatsmr.jl")
