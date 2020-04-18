@@ -262,8 +262,11 @@ frame1$Y1 <- preds$v.pred
 frame1$Y1 <- ifelse(frame1$Y1 < 0, 0, frame1$Y1)
 frame1$X1 <- frame1$Y1
 frame1$var1 <- preds$v.var
+<<<<<<< HEAD
 frame1$lon <- cc@coords[,1]
 frame1$lat <- cc@coords[,2]
+=======
+>>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
 head(frame1)
 
 # preds = krige(ST1 ~ P1, spoints_samp, Comune_BO_geo, model = fit.vgm$var_model)
@@ -289,7 +292,11 @@ gamma_sigma_2 <- computeGamma(e=lm_pred$residuals[camp],
                               nbins=6)
 gamma_sigma_2
 # gamma     sigma  r.square 
+<<<<<<< HEAD
 # 0.5100489 0.9401730 0.9394493 
+=======
+# 0.5006069 0.9888317 0.9372327 
+>>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
 
 # head(frame1)
 
@@ -334,6 +341,7 @@ newstrata
 unlink("./simulation",recursive=TRUE)
 val2b <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
 val2b$coeff_var 
+<<<<<<< HEAD
 
 # Plot
 colnames(framenew)[1] <- "SEZ"
@@ -349,6 +357,23 @@ bologna@data$sampled <- as.factor(ifelse(is.na(bologna@data$WEIGHTS),2,1))
 table(bologna@data$sampled)
 spplot(bologna,"sampled")
 
+=======
+
+# Plot
+colnames(framenew)[1] <- "SEZ"
+bologna <- Comune_BO_geo
+bologna@data <- merge(bologna@data,framenew[,c("SEZ","LABEL")])
+bologna@data$LABEL <- as.factor(bologna@data$LABEL)
+spplot(bologna,"LABEL")
+
+s <- selectSample(framenew,outstrata)
+bologna <- merge(bologna,s[,c("SEZ","LABEL","WEIGHTS")],all.x=TRUE)
+head(bologna@data)
+bologna@data$sampled <- as.factor(ifelse(is.na(bologna@data$WEIGHTS),2,1))
+table(bologna@data$sampled)
+spplot(bologna,"sampled")
+
+>>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
 bologna@data[bologna@data$SEZ==2139,]
 
 ################################################################################################
@@ -373,7 +398,11 @@ gamma_sigma_3 <- computeGamma(e=lm_2$residuals,
                               nbins=6)
 gamma_sigma_3
 # gamma     sigma  r.square 
+<<<<<<< HEAD
 # 0.6132473 0.6257764 0.9654370
+=======
+# 0.6132473 0.6257764 0.9654370 
+>>>>>>> b72ad61ae26897bf65c1d7468f9d6846dcb31bed
 # Estimate psill and range on residuals of lm_2
 spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
 spoints_samp@data$res_spatial <- summary(lm_2)$residuals
