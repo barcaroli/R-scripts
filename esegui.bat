@@ -1,1 +1,1 @@
-R CMD BATCH "Case study 2 simulation.R"
+R CMD BATCH "Case study 2 simulation_2.R"

@@ -7,7 +7,6 @@
 # Input: simulation.csv (values of parameters for each iteration)
 # Output: simul_results.csv
 #--------------------------------------------------------------------
-setwd("C:/Users/Giulio/Google Drive/Paper Spatial Sampling/R-scripts new")
 
 filename <- "simulation_gamma.csv"
 
@@ -134,49 +133,37 @@ simula <- function(itera,
   # SOLUTION 2 
   # Universal kriging
   
-  # variogram
-  v <- variogram(target ~ P1, data=spoints_samp)
-  plot(v)
-  # Estimation of psill, range and nugget with automap
-  fit.vgm = autofitVariogram(target ~ P1, spoints_samp, 
-                             # model = c("Exp","Sph","Gau","Mat","Log","Exc","Ste", "Cir", "Lin", "Bes", "Pen", "Per", "Wav", "Hol", "Log", "Pow", "Spl", "Leg", "Err", "Int"))
-                             model = c("Exp","Sph","Mat"))
-  plot(v, fit.vgm$var_model)
-  fit.vgm$var_model
-
+  library(automap)
+  spoints2 <- SpatialPointsDataFrame(coords=cc,data=spoints@data)
+  spoints_samp2 <- spoints2[camp,]
+  kriging = autoKrige(ST1 ~ P1, spoints_samp2, spoints2)
+  kriging$var_model
+  # plot(kriging,sp.layout = NULL, justPosition = TRUE)
   
-  # prediction with gstat
   
-  g <- gstat(NULL, "v", target ~ P1, spoints_samp)
-  v <- variogram(g)
-  v.fit <- fit.lmc(v, g, 
-                   vgm(psill=fit.vgm$var_model$psill[2], 
-                       model=fit.vgm$var_model$model[2], 
-                       range=fit.vgm$var_model$range[2], 
-                       nugget=fit.vgm$var_model$psill[1]))
-  preds <- predict(v.fit, Comune_BO_geo)
+  r2_kriging <- 
+    sum( (1/(nrow(spoints2)-1)) * 
+           ((spoints2$ST1-mean(spoints2$ST1)) * (kriging$krige_output@data$var1.pred - mean(kriging$krige_output@data$var1.pred)) )
+         / (sd(spoints2$ST1) * sd(kriging$krige_output@data$var1.pred))   
+    )^2
+  r2_kriging
+  
   # Add predicted values and residuals variance to the frame
   frame1 <- frame
-  frame1$Y1 <- preds$v.pred
+  frame1$Y1 <- kriging$krige_output@data$var1.pred
   frame1$Y1 <- ifelse(frame1$Y1 < 0, 0, frame1$Y1)
   frame1$X1 <- frame1$Y1
-  frame1$var1 <- preds$v.var
-  
+  frame1$var1 <- kriging$krige_output@data$var1.var
+  frame1$var1 <- ifelse(frame1$var1 < 0, 0, frame1$var1)
+  frame1$lon <- cc@coords[,1]
+  frame1$lat <- cc@coords[,2]
+  frame1$ST1 <- spoints2@data$ST1
+  head(frame1)
   
   gamma_sigma_2 <- computeGamma(e=(frame1$Y1[camp]-frame1$target[camp]),
                                 x=frame1$P1[camp],
                                 nbins=6)
   gamma_sigma_2
-  
-  # Compute fitting
-  # plot(frame1$Y1[camp],(frame1$Y1[camp]-frame1$target[camp]))
-  lm_pred <- lm(target ~ Y1,data=frame1)
-  summary(lm_pred)
-  summary(lm_pred)$sigma^2
-  summary(lm_pred)$r.squared
-
-  frame1$var1 <- gamma_sigma_2[2]^2 * frame1$P1 ^ (gamma_sigma_2[1] * 2)
-  
   
   set.seed(4321)
   solution2 <- optimStrata (
@@ -186,9 +173,8 @@ simula <- function(itera,
     iter = 50,
     pops = 10,
     nStrata = 5,
-    # fitting = summary(lm_pred)$r.squared,
-    fitting = summary(lm_1)$r.squared, 
-    range = fit.vgm$var_model$range[2],
+    fitting = r2_kriging, 
+    range = kriging$var_model$range[2],
     kappa = 1,
     writeFiles = FALSE,
     showPlot = TRUE,
@@ -307,8 +293,8 @@ simula <- function(itera,
                  cv2 = as.numeric(val2$coeff_var[2]),
                  gamma2 <- as.numeric(gamma_sigma_2[1]*2),
                  var2 <- as.numeric(gamma_sigma_2[1]^2),
-                 fitting2 = summary(lm_pred)$r.squared, 
-                 range2 = fit.vgm$var_model$range[2],
+                 fitting2 = r2_kriging, 
+                 range2 = kriging$var_model$range[2],
                  cv2a = as.numeric(val2a$coeff_var[2]),
                  # n2b = sum(round(solution2b$aggr_strata$SOLUZ)),
                  # cv2b = as.numeric(val2b$coeff_var[2]),

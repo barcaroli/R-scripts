@@ -1,0 +1,1890 @@
+
+R version 4.0.0 (2020-04-24) -- "Arbor Day"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+R è un software libero ed è rilasciato SENZA ALCUNA GARANZIA.
+Siamo ben lieti se potrai redistribuirlo, ma sotto certe condizioni.
+Scrivi 'license()' o 'licence()' per dettagli su come distribuirlo.
+
+R è un progetto di collaborazione con molti contributi esterni.
+Scrivi 'contributors()' per maggiori informazioni e 'citation()'
+per sapere come citare R o i pacchetti di R nelle pubblicazioni.
+
+Scrivi 'demo()' per una dimostrazione, 'help()' per la guida in linea, o
+'help.start()' per l'help navigabile con browser HTML.
+Scrivi 'q()' per uscire da R.
+
+> #--------------------------------------------------------------------
+> # "Optimization of Spatial Sampling with the R packageSamplingStrata"
+> # Case study 2
+> # R script for evaluating performance of the three models
+> # varying conditions of generation of a simulated population
+> # (values of parameters in file "simulation.csv")
+> # Input: simulation.csv (values of parameters for each iteration)
+> # Output: simul_results.csv
+> #--------------------------------------------------------------------
+> 
+> filename <- "simulation_gamma.csv"
+> 
+> library(SamplingStrata)
+Carico il pacchetto richiesto: memoise
+Carico il pacchetto richiesto: doParallel
+Carico il pacchetto richiesto: foreach
+Carico il pacchetto richiesto: iterators
+Carico il pacchetto richiesto: parallel
+Carico il pacchetto richiesto: pbapply
+Carico il pacchetto richiesto: formattable
+
+Report issues at https://github.com/barcaroli/SamplingStrata/issues
+Get a complete documentation on https://barcaroli.github.io/SamplingStrata
+> library(rgdal) # readOGR
+Carico il pacchetto richiesto: sp
+rgdal: version: 1.4-8, (SVN revision 845)
+ Geospatial Data Abstraction Library extensions to R successfully loaded
+ Loaded GDAL runtime: GDAL 2.2.3, released 2017/11/20
+ Path to GDAL shared files: C:/Users/Giulio/Documents/R/win-library/4.0/rgdal/gdal
+ GDAL binary built with GEOS: TRUE 
+ Loaded PROJ.4 runtime: Rel. 4.9.3, 15 August 2016, [PJ_VERSION: 493]
+ Path to PROJ.4 shared files: C:/Users/Giulio/Documents/R/win-library/4.0/rgdal/proj
+ Linking to sp version: 1.4-1 
+> library(spdep) # poly2nb
+Carico il pacchetto richiesto: spData
+To access larger datasets in this package, install the spDataLarge
+package with: `install.packages('spDataLarge',
+repos='https://nowosad.github.io/drat/', type='source')`
+Carico il pacchetto richiesto: sf
+Linking to GEOS 3.6.1, GDAL 2.2.3, PROJ 4.9.3
+> library(gstat)
+> library(automap)
+> library(rgeos) # gCentroid
+rgeos version: 0.5-2, (SVN revision 621)
+ GEOS runtime version: 3.6.1-CAPI-1.10.1 
+ Linking to sp version: 1.4-1 
+ Polygon checking: TRUE 
+
+> library(geoR) # grf
+--------------------------------------------------------------
+ Analysis of Geostatistical Data
+ For an Introduction to geoR go to http://www.leg.ufpr.br/geoR
+ geoR version 1.8-1 (built on 2020-02-08) is now loaded
+--------------------------------------------------------------
+
+> 
+> 
+> 
+> simula <- function(itera,
++                    Comune_BO_geo,
++                    spoints,
++                    cc,
++                    range_eps,
++                    var_eps,
++                    gamma,
++                    beta1,
++                    beta2) {
++   cat("\nIteration",itera,"\n")
++   set.seed(4321)
++   eps1 <- grf(nrow(spoints@data),  
++               grid=spoints@coords, 
++               cov.pars=c(var_eps, range_eps),           
++               cov.model="exponential") 
++   head(eps1$data)
++ 
++   Comune_BO_geo@data$eps1<-eps1$data
++   Comune_BO_geo@data$target <- beta1*Comune_BO_geo@data$P1+
++     beta2*Comune_BO_geo@data$P1W+
++     Comune_BO_geo@data$eps1 * Comune_BO_geo@data$P1^gamma
++   Comune_BO_geo@data$target <- ifelse(Comune_BO_geo@data$target < 0, 0, Comune_BO_geo@data$target)
++   summary(Comune_BO_geo@data$target)
++ 
++ 
++   ######################################################
++   # Selection of a sample of EAs
++   sample_rate <- 0.2
++   samplesize <- round(nrow(Comune_BO_geo)*sample_rate)
++   set.seed(4321)
++   camp <- sample(c(1:nrow(Comune_BO_geo)),samplesize)
++   spoints_samp<-Comune_BO_geo[camp,]
++   
++   # Frame 
++   df <- NULL
++   df$id <- Comune_BO_geo@data$SEZ
++   df$P1 <- Comune_BO_geo@data$P1
++   df <- as.data.frame(df)
++   df$dom <- 1
++   
++   frame <- buildFrameDF(df=df,
++                         id="id",
++                         X="P1",
++                         Y="P1",
++                         domainvalue = "dom")
++   frame$lon <- cc@coords[,1]
++   frame$lat <- cc@coords[,2]
++   frame$target <- Comune_BO_geo$target
++   frame$P1 <- Comune_BO_geo$P1 
++   frame$W1 <- Comune_BO_geo$P1W
++   
++   cv <- NULL
++   cv$DOM <- "DOM1"
++   cv$CV1 <- 0.03
++   cv$domainvalue <- 1
++   cv <- as.data.frame(cv)
++   cv
++   
++   
++   ################################################################################################
++   # SOLUTION 1
++   # Linear model
++   lm_1 <- lm(target~P1,data=spoints_samp)
++   summary(lm_1)
++   
++   # Heteroscedasticity index
++   gamma_sigma_1 <- computeGamma(e=summary(lm_1)$residuals,
++                                 x=spoints_samp@data$P1,
++                                 nbins=6)
++   gamma_sigma_1
++   gamma_sigma_1[1] <- ifelse(gamma_sigma_1[1]<0,0,gamma_sigma_1[1])
++   
++   # plot(lm_1)
++   
++   model_linear <- NULL
++   model_linear$type[1] <- "linear"
++   model_linear$beta[1] <- summary(lm_1)$coefficients[2]
++   model_linear$sig2[1] <- gamma_sigma_1[2]^2
++   model_linear$gamma[1] <- gamma_sigma_1[1]
++   model_linear <- as.data.frame(model_linear)
++   model_linear
++ 
++   set.seed(4321)
++   solution1 <- optimStrata (
++     method="continuous",
++     errors=cv, 
++     framesamp=frame,
++     model=model_linear,
++     iter = 50,
++     pops = 10,
++     nStrata = 5,
++     writeFiles = FALSE,
++     showPlot = TRUE,
++     parallel = FALSE
++   )
++   sum(solution1$aggr_strata$SOLUZ)
++   framenew <- solution1$framenew
++   outstrata <- solution1$aggr_strata
++   outstrata
++   s1 <- summaryStrata(framenew,outstrata)
++   s1
++   framenew$Y2 <- framenew$TARGET
++   
++   expected_CV(outstrata)
++   unlink("./simulation",recursive=TRUE)
++   val1 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
++   val1$rel_bias
++   val1$coeff_var 
++ 
++   ################################################################################################
++   # SOLUTION 2 
++   # Universal kriging
++   
++   library(automap)
++   spoints2 <- SpatialPointsDataFrame(coords=cc,data=spoints@data)
++   spoints_samp2 <- spoints2[camp,]
++   kriging = autoKrige(ST1 ~ P1, spoints_samp2, spoints2)
++   kriging$var_model
++   plot(kriging,sp.layout = NULL, justPosition = TRUE)
++   
++   
++   r2_kriging <- 
++     sum( (1/(nrow(spoints2)-1)) * 
++            ((spoints2$ST1-mean(spoints2$ST1)) * (kriging$krige_output@data$var1.pred - mean(kriging$krige_output@data$var1.pred)) )
++          / (sd(spoints2$ST1) * sd(kriging$krige_output@data$var1.pred))   
++     )^2
++   r2_kriging
++   
++   # Add predicted values and residuals variance to the frame
++   frame1 <- frame
++   frame1$Y1 <- kriging$krige_output@data$var1.pred
++   frame1$Y1 <- ifelse(frame1$Y1 < 0, 0, frame1$Y1)
++   frame1$X1 <- frame1$Y1
++   frame1$var1 <- kriging$krige_output@data$var1.var
++   frame1$var1 <- ifelse(frame1$var1 < 0, 0, frame1$var1)
++   frame1$lon <- cc@coords[,1]
++   frame1$lat <- cc@coords[,2]
++   frame1$ST1 <- spoints2@data$ST1
++   head(frame1)
++   
++   gamma_sigma_2 <- computeGamma(e=(frame1$Y1[camp]-frame1$target[camp]),
++                                 x=frame1$P1[camp],
++                                 nbins=6)
++   gamma_sigma_2
++   
++   set.seed(4321)
++   solution2 <- optimStrata (
++     method="spatial",
++     errors=cv, 
++     framesamp=frame1,
++     iter = 50,
++     pops = 10,
++     nStrata = 5,
++     fitting = r2_kriging, 
++     range = kriging$var_model$range[2],
++     kappa = 1,
++     writeFiles = FALSE,
++     showPlot = TRUE,
++     parallel = FALSE
++   )
++   sum(round(solution2$aggr_strata$SOLUZ))
++   framenew <- solution2$framenew
++   outstrata <- solution2$aggr_strata
++   outstrata
++   s2 <- summaryStrata(framenew,outstrata)
++   s2
++   framenew$Y2 <- framenew$TARGET
++   expected_CV(outstrata)
++   unlink("./simulation",recursive=TRUE)
++   val2 <- evalSolution(framenew,outstrata,nsampl = 1000,progress = F)
++   val2$rel_bias
++   val2$coeff_var 
++   
++   # Comparison with same sample size of Solution 1
++   size <- sum(solution1$aggr_strata$SOLUZ)
++   newstrata <- adjustSize(size,outstrata)
++   sum(newstrata$SOLUZ)
++   newstrata
++   unlink("./simulation",recursive=TRUE)
++   val2a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
++   val2a$coeff_var 
++   
++   ################################################################################################
++   # SOLUTION 3 
++   # Spatial Linear Model
++   
++   lm_2 <- lm(target ~ P1 + P1W, data=spoints_samp)
++   summary(lm_2)
++   
++   # plot(lm_2)
++   
++   gamma_sigma_3 <- computeGamma(e=(frame$target[camp] - predict(lm_2,data=frame[camp,])),
++                                 x=spoints_samp@data$P1,
++                                 nbins=6)
++   gamma_sigma_3
++   # Estimate psill and range on residuals of lm_2
++   spoints_samp@data$fit_spatial <- predict(lm_2,spoints_samp@data)
++   spoints_samp@data$res_spatial <- summary(lm_2)$residuals
++   
++   v2 <- variogram(res_spatial  ~ 1, data=spoints_samp)
++   plot(v2)
++   fit.vgm2 = autofitVariogram(res_spatial  ~ 1, spoints_samp, model = c("Exp","Sph","Mat"))
++   plot(v2, fit.vgm2$var_model)
++   fit.vgm2$var_model
++   # fit.vgm$var_model
++   
++   # v3 <- variogram(fit_spatial  ~ res_spatial, data=spoints_samp, cutoff=3000, width=3000/30)
++   # plot(v3)
++   # fit.vgm3 = autofitVariogram(fit_spatial  ~ res_spatial, spoints_samp, model = c("Exp","Sph"))
++   # plot(v3, fit.vgm3$var_model)
++   # fit.vgm3$var_model
++   
++   
++   
++   model_spatial <- NULL
++   model_spatial$type[1] <- "spatial"
++   model_spatial$beta[1] <- summary(lm_2)$coefficients[2]
++   model_spatial$beta2[1] <- summary(lm_2)$coefficients[3]
++   # model_spatial$sig2[1] <- summary(lm_2)$sigma^2
++   # model_spatial$sig2[1] <- fit.vgm2$var_model_spatial$psill[2]
++   model_spatial$sig2[1] <- gamma_sigma_3[2]^2
++   model_spatial$range[1] <- fit.vgm2$var_model$range[2]
++   # model_spatial$sig2_2[1] <- fit.vgm3$var_model_spatial$psill[2]
++   # model_spatial$range_2[1] <- fit.vgm3$var_model_spatial$range[2]
++   model_spatial$gamma[1] <- gamma_sigma_3[1]
++   model_spatial$fitting[1] <- summary(lm_2)$r.square
++   model_spatial <- as.data.frame(model_spatial)
++   model_spatial
++   
++   set.seed(1234)
++   solution3 <- optimStrata (
++     method="continuous",
++     errors=cv, 
++     framesamp=frame,
++     model=model_spatial,
++     iter = 50,
++     pops = 10,
++     nStrata = 5,
++     writeFiles = FALSE,
++     showPlot = TRUE,
++     parallel = FALSE
++   )
++   sum(solution3$aggr_strata$SOLUZ)
++   framenew <- solution3$framenew
++   outstrata <- solution3$aggr_strata
++   s3 <- summaryStrata(framenew,outstrata)
++   s3
++   framenew$Y2 <- framenew$TARGET
++   
++   expected_CV(outstrata)
++   unlink("./simulation",recursive=TRUE)
++   val3 <- evalSolution(framenew,outstrata,nsampl=1000,progress=F)
++   val1$rel_bias
++   val3$coeff_var 
++   
++   # Comparison with same sample size of Solution 1
++   size <- sum(solution1$aggr_strata$SOLUZ)
++   newstrata <- adjustSize(size,outstrata)
++   sum(newstrata$SOLUZ)
++   newstrata
++   unlink("./simulation",recursive=TRUE)
++   val3a <- evalSolution(framenew,newstrata,nsampl = 1000,progress = F)
++   val3a$rel_bias
++   val3a$coeff_var 
++   
++   result <- list(n1 = sum(round(solution1$aggr_strata$SOLUZ)),
++                  cv1 = as.numeric(val1$coeff_var[2]),
++                  gamma1 = as.numeric(gamma_sigma_1[1]*2),
++                  var1 = as.numeric(gamma_sigma_1[1]^2),
++                  n2 = sum(round(solution2$aggr_strata$SOLUZ)),
++                  cv2 = as.numeric(val2$coeff_var[2]),
++                  gamma2 <- as.numeric(gamma_sigma_2[1]*2),
++                  var2 <- as.numeric(gamma_sigma_2[1]^2),
++                  fitting2 = r2_kriging, 
++                  range2 = kriging$var_model$range[2],
++                  cv2a = as.numeric(val2a$coeff_var[2]),
++                  # n2b = sum(round(solution2b$aggr_strata$SOLUZ)),
++                  # cv2b = as.numeric(val2b$coeff_var[2]),
++                  # cv2c = as.numeric(val2c$coeff_var[2]),
++                  n3 = sum(round(solution3$aggr_strata$SOLUZ)),
++                  cv3 = as.numeric(val3$coeff_var[2]),
++                  gamma3 <- as.numeric(gamma_sigma_3[1]*2),
++                  var3 <- as.numeric(gamma_sigma_3[1]^2),
++                  fitting3 = summary(lm_2)$r.squared, 
++                  range3 = fit.vgm2$var_model$range[2],
++                  cv3a = as.numeric(val3a$coeff_var[2])
++                  )
++   return(result)
++ }
+> 
+> setwd("C:/Users/Giulio/Google Drive/Paper Spatial Sampling/script per paper/Case study 2/simulations")
+> load("Bologna.RData")
+> 
+> iters <- read.csv2(filename,dec=".")
+> res <- iters
+> res$n1 <- NA
+> res$cv1 <- NA
+> res$gamma1 <- NA
+> res$var1 <- NA
+> res$n2 <- NA
+> res$cv2 <- NA
+> res$gamma2 <- NA
+> res$var2 <- NA
+> res$fitting2 <- NA
+> res$range2 <- NA
+> res$cv2a <- NA
+> # res$n2b <- NA
+> # res$cv2b <- NA
+> # res$cv2c <- NA
+> res$n3 <- NA
+> res$cv3 <- NA
+> res$gamma3 <- NA
+> res$var3 <- NA
+> res$fitting3 <- NA
+> res$range3 <- NA
+> res$cv3a <- NA
+> res <- as.data.frame(res)
+> for (i in (1:nrow(iters))) {
++ # for (i in (1:1)) {
++   results <- simula(itera = i,
++                      Comune_BO_geo,
++                      spoints,
++                      cc,
++                      range_eps = iters$range[i],
++                      var_eps = iters$var_eps[i],
++                      gamma = iters$gamma[i],
++                      beta1 = 1,
++                      beta2 = 1)
++   res$n1[i] <- results$n1
++   res$cv1[i] <- as.numeric(results$cv1)
++   res$gamma1[i] <- results$gamma1
++   res$var1[i] <- results$var1
++   res$n2[i] <- results$n2
++   res$cv2[i] <- as.numeric(results$cv2)
++   res$gamma2[i] <- results[[7]]
++   res$var2[i] <- results[[8]]
++   res$fitting2[i] <- results$fitting2
++   res$range2[i] <- results$range2
++   res$cv2a[i] <- as.numeric(results$cv2a)
++   # res$n2b[i] = results$n2b
++   # res$cv2b[i] = results$cv2b
++   # res$cv2c[i] = results$cv2c
++   res$n3[i] <- results$n3
++   res$cv3[i] <- as.numeric(results$cv3)
++   res$gamma3[i] <- results[[14]]
++   res$var3[i] <- results[[15]]
++   res$fitting3[i] <- results$fitting3
++   res$range3[i] <- results$range3 
++   res$cv3a[i] <- as.numeric(results$cv3a)
++ }
+
+Iteration 1 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  248.524
+ *** Number of strata:  5
+ *** Sample size :  248
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 247
+ 248
+ 248
+ Final adjusted size:  248
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  110.3364
+ *** Number of strata:  5
+ *** Sample size :  110
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 249
+ 249
+ Final adjusted size:  249
+Iteration 2 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  281.8112
+ *** Number of strata:  5
+ *** Sample size :  282
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 283
+ 283
+ Final adjusted size:  283
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  123.3955
+ *** Number of strata:  5
+ *** Sample size :  123
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 280
+ 282
+ 282
+ Final adjusted size:  282
+Iteration 3 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  311.317
+ *** Number of strata:  5
+ *** Sample size :  311
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 311
+ 311
+ Final adjusted size:  311
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  143.8989
+ *** Number of strata:  5
+ *** Sample size :  144
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 310
+ 310
+ Final adjusted size:  310
+Iteration 4 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  373.8319
+ *** Number of strata:  5
+ *** Sample size :  374
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 375
+ 375
+ Final adjusted size:  375
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  175.6866
+ *** Number of strata:  5
+ *** Sample size :  175
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 374
+ 374
+ Final adjusted size:  374
+Iteration 5 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  471.6894
+ *** Number of strata:  5
+ *** Sample size :  472
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 472
+ 472
+ Final adjusted size:  472
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  224.246
+ *** Number of strata:  5
+ *** Sample size :  225
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 471
+ 471
+ Final adjusted size:  471
+Iteration 6 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  620.3172
+ *** Number of strata:  5
+ *** Sample size :  619
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 619
+ 619
+ Final adjusted size:  619
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  307.1241
+ *** Number of strata:  5
+ *** Sample size :  306
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 619
+ 619
+ Final adjusted size:  619
+Iteration 7 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  806.2483
+ *** Number of strata:  5
+ *** Sample size :  806
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 806
+ 806
+ Final adjusted size:  806
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  438.8721
+ *** Number of strata:  5
+ *** Sample size :  439
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 806
+ 806
+ Final adjusted size:  806
+Iteration 8 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1020.873
+ *** Number of strata:  5
+ *** Sample size :  1022
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1023
+ 1022
+ 1022
+ Final adjusted size:  1022
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  583.5883
+ *** Number of strata:  5
+ *** Sample size :  584
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1021
+ 1021
+ Final adjusted size:  1021
+Iteration 9 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1197.87
+ *** Number of strata:  5
+ *** Sample size :  1198
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1198
+ 1198
+ Final adjusted size:  1198
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  846.787
+ *** Number of strata:  5
+ *** Sample size :  848
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1197
+ 1197
+ Final adjusted size:  1197
+Iteration 10 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1301.973
+ *** Number of strata:  5
+ *** Sample size :  1301
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1302
+ 1302
+ Final adjusted size:  1302
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1041.102
+ *** Number of strata:  5
+ *** Sample size :  1041
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1303
+ 1303
+ Final adjusted size:  1303
+Iteration 11 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1359.741
+ *** Number of strata:  5
+ *** Sample size :  1360
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1361
+ 1361
+ Final adjusted size:  1361
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1184.031
+ *** Number of strata:  5
+ *** Sample size :  1183
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1361
+ 1361
+ Final adjusted size:  1361
+Iteration 12 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1351.379
+ *** Number of strata:  5
+ *** Sample size :  1352
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1350
+ 1350
+ Final adjusted size:  1350
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1255.049
+ *** Number of strata:  5
+ *** Sample size :  1255
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1344
+ 1348
+ 1350
+ 1350
+ Final adjusted size:  1350
+Iteration 13 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1328.122
+ *** Number of strata:  5
+ *** Sample size :  1328
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1327
+ 1327
+ Final adjusted size:  1327
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1247.527
+ *** Number of strata:  5
+ *** Sample size :  1247
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1309
+ 1324
+ 1327
+ 1327
+ Final adjusted size:  1327
+Iteration 14 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1282.739
+ *** Number of strata:  5
+ *** Sample size :  1282
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1284
+ 1284
+ Final adjusted size:  1284
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1227.401
+ *** Number of strata:  5
+ *** Sample size :  1227
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1265
+ 1278
+ 1282
+ 1282
+ Final adjusted size:  1282
+Iteration 15 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1241.091
+ *** Number of strata:  5
+ *** Sample size :  1241
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1241
+ 1241
+ Final adjusted size:  1241
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1204.264
+ *** Number of strata:  5
+ *** Sample size :  1204
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1230
+ 1238
+ 1240
+ 1240
+ Final adjusted size:  1240
+Iteration 16 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1195.76
+ *** Number of strata:  5
+ *** Sample size :  1197
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1195
+ 1195
+ Final adjusted size:  1195
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1195.314
+ *** Number of strata:  5
+ *** Sample size :  1196
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ Final adjusted size:  1195.314
+Iteration 17 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1153.926
+ *** Number of strata:  5
+ *** Sample size :  1153
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1154
+ 1154
+ Final adjusted size:  1154
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1150.547
+ *** Number of strata:  5
+ *** Sample size :  1151
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1152
+ 1153
+ 1153
+ Final adjusted size:  1153
+Iteration 18 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1111.123
+ *** Number of strata:  5
+ *** Sample size :  1112
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1110
+ 1110
+ Final adjusted size:  1110
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1136.387
+ *** Number of strata:  5
+ *** Sample size :  1137
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1112
+ 1112
+ Final adjusted size:  1112
+Iteration 19 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1070.621
+ *** Number of strata:  5
+ *** Sample size :  1071
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1072
+ 1072
+ Final adjusted size:  1072
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1102.03
+ *** Number of strata:  5
+ *** Sample size :  1102
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1071
+ 1071
+ Final adjusted size:  1071
+Iteration 20 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1034.307
+ *** Number of strata:  5
+ *** Sample size :  1034
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1033
+ 1033
+ Final adjusted size:  1033
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1073.642
+ *** Number of strata:  5
+ *** Sample size :  1074
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1035
+ 1035
+ Final adjusted size:  1035
+Iteration 21 
+grf: simulation on a set of locations provided by the user
+grf: process with  1  covariance structure(s)
+grf: nugget effect is: tausq= 0 
+grf: covariance model 1 is: exponential(sigmasq=2000, phi=2000)
+grf: simulation using the function GaussRF from package RandomFields 
+grf: End of simulation procedure. Number of realizations: 1 
+
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  999.4701
+ *** Number of strata:  5
+ *** Sample size :  1000
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+[using universal kriging]
+
+Input data have been checked and are compliant with requirements
+Sequential optimization as parallel = FALSE, defaulting number of cores = 1
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  446.0768
+ *** Number of strata:  5
+ *** Sample size :  446
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 999
+ 999
+ Final adjusted size:  999
+Input data have been checked and are compliant with requirements
+
+ *** Domain :  1   1
+ Number of strata :  2334
+GA Settings
+  Population size       = 10
+  Number of Generations = 50
+  Elitism               = 2
+  Mutation Chance       = 0.2
+
+
+
+ *** Sample cost:  1052.898
+ *** Number of strata:  5
+ *** Sample size :  1053
+ *** Number of strata :  5
+---------------------------  |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+
+ 1000
+ 1000
+ Final adjusted size:  1000There were 50 or more warnings (use warnings() to see the first 50)
+> write.table(res,"simul_results.csv",row.names=F,col.names=T,dec=".",quote=F,sep=";")
+> 
+> proc.time()
+   user  system elapsed 
+3366.53  246.23 3634.62 

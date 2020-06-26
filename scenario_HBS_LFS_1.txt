@@ -1,0 +1,24 @@
+
+-------------------------------------
+ scenario 1
+-------------------------------------
+-------------------------------------
+Joint use of PSUs by HBS and LFS
+Joint use of PSUs by HBS and Energy
+Joint use of PSUs by HBS and Violence
+Joint use of PSUs by LFS and Energy
+Joint use of PSUs by LFS and Violence
+Joint use of PSUs by Energy and Violence
+-------------------------------------
+PSUs jointly used in each quarter 
+
+   ... of which in Chisinau urban 
+
+-----------------------------------------
+PSUs exhausted/renewed in each quarter 
+
+   ... of which in Chisinau urban 
+
+   ... of which not in Chisinau urban 
+
+-----------------------------------------

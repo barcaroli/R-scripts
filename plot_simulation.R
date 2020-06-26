@@ -1,5 +1,5 @@
-est <- read.csv2("simul_results.csv",dec=".")
-write.table(est,"simul_results.txt",row.names=F,sep="\t",quote=F)
+est <- read.csv2("simul_results 1.csv",dec=".")
+write.table(est,"simul_results 1.txt",row.names=F,sep="\t",quote=F)
 est <- est[1:15,]
 
 maxi = (max(c(est$n1),(est$n2),(est$n3))) + 100
